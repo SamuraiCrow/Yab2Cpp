@@ -173,14 +173,37 @@ static void operands::dumpVars(ostream &out)
 	}
 	out << endl;
 }
-unsigned int operands::getOrCreateStr(string &s, ostream &k)
+unsigned int operands::getOrCreateStr(ostream &k, string &s)
 {
 	auto iter=constStr.find(s);
 	if (iter!=constStr.end()) return iter->second;
 	++nextID;
-	k << "const string sk" << nextID << "=\"" << s << "\";\n";
+	k << "const string k" << nextID << "=\"" << s << "\";\n";
 	constStr[s]=nextID;
 	return nextID;
+}
+
+unsigned int operands::createConst(ostream &k, string &s, enum TYPES t)
+{
+	operands *me=new operands(t);
+	if (t==T_INT)
+	{
+		k << "const int k";
+	}
+	else
+	{
+		if (t==T_FLOAT)
+		{
+			k << "const double k";
+		}
+		else
+		{
+			errorLevel=E_TYPE_MISMATCH;
+			exit(1);
+		}
+	}
+	k << me->getID() << "=" << s << ";\n";
+	return me;
 }
 
 enum TYPES operands::getSimpleVarType()
@@ -559,11 +582,119 @@ void conditional::close(ostream &out)
 		exit(1);
 	}
 	this->done->generate();
+}
+
+conditional::~conditional()
+{
 	delete this->done;
 	delete this->redo;
 }
 
 /* Loop definitions */
+repeatLoop::repeatLoop(ostream &out):codeType(T_REPEATLOOP)
+{
+	this->loopStart=new label();
+	this->loopEnd=new label();
+	loopStart->generate(out;)
+}
+
+void repeatLoop::generateBreak(ostream &out)
+{
+	loopEnd->generateJumpTo(out);
+}
+
+void repeatLoop::close(ostream &out, expression *e)
+{
+	expression *f=new expression(e, O_NOT);
+	loopStart->generateCondJump(out, f);
+	loopEnd->generate(out);
+}
+
+repeatLoop::~repeatLoop()
+{
+	delete loopStart;
+	delete loopEnd;
+}
+
+doLoop::doLoop(ostream &out):codeType(T_DOLOOP)
+{
+	this->loopStart=new label();
+	this->loopEnd=new label();
+	loopStart->generate(out;)
+}
+
+void doLoop::generateBreak(ostream &out)
+{
+	loopEnd->generateJumpTo(out);
+}
+
+void doLoop::close(ostream &out)
+{
+	this->loopStart->generateJumpTo(out);
+	this->loopEnd->generate(out);
+}
+
+doLoop::~doLoop()
+{	delete loopStart;
+	delete loopEnd;
+}
+
+whileLoop::whileLoop(ostream &out, expression *e):codeType(T_WHILELOOP)
+{
+	loopContinue=new label();
+	loopStart=new label();
+	loopEnd=new label();
+	cond=e;
+	loopStart->generateJumpTo(out);
+	loopContinue->generate(out);
+}
+
+void whileLoop::generateBreak(ostream &out)
+{
+	loopEnd->generateJumpTo(out);
+}
+
+void whileLoop::close(ostream &out)
+{
+	loopStart->generate(out);
+	loopContinue->generateJumpCond(out, cond);
+	loopEnd->generate(out);
+}
+
+whileLoop::~whileLoop()
+{
+	delete loopStart;
+	delete loopContinue;
+	delete loopEnd;
+}
+
+/* TODO: make the stopper into a full range check */
+forLoop::forLoop(ostream &out, ostream &k, variable *v, expression *start, expression *stop, expression *stepVal=NULL):codeType(T_FORLOOP)
+{
+	expression *stopper=new expression(new expression (v), O_UNEQUAL, stop);
+	v->assignment(out, start);
+	infrastructure=new whileLoop(out, stopper);
+	if (stepVal)
+	{
+		step=stepVal;
+	}
+	else
+	{
+		step=new expression(operands::createConst(k, "1", T_INT));
+	}
+}
+
+void forLoop::generateBreak(ostream &out)
+{
+	infrastructure->generateBreak(out);
+}
+
+void forLoop::close(ostream &out)
+{
+	expression *stepper=new expression(new expression(v), O_PLUS, step);
+	v->assignment(out, stepper)
+	infrastructure->close(ostream &out);
+}
 
 /* function definitions */
 

@@ -168,7 +168,8 @@ public:
 	unsigned int getID() const {return id;}
 
 	static void dumpVars(ostream &out);
-	static unsigned int getOrCreateStr(string &s);
+	static unsigned int getOrCreateStr(ostream &k, string &s);
+	static operands *createConst(ostream &k, string &s, enum TYPES t);
 
 	enum TYPES getSimpleVarType();
 	void generateBox(ostream &out);
@@ -202,6 +203,11 @@ public:
 		this->right=r;
 		this->oper=o;
 	}
+	expression(operands x)
+	{
+		op=x;
+		oper=O_TERM;
+	}
 	virtual ~expression();
 };
 
@@ -218,11 +224,11 @@ public:
 
 	codeType *getCurrent();
 	virtual void close();
+	virtual void generateBreak(ostream &out)=0;
 
 	explicit codeType(enum CODES t);
 	virtual ~codeType()
-	{
-	}
+	{}
 };
 
 class label
@@ -257,83 +263,88 @@ public:
 /* if statement */
 class conditional:public codeType
 {
-	shared_ptr<label>redo; /* for continue command */
-	shared_ptr<label>done; /* for break or after "then" condition */
-	shared_ptr<label>chain; /* For elsif command */
+	label *redo; /* for continue command */
+	label *done; /* for break or after "then" condition */
+	label *chain; /* For elsif command */
 public:
 	void generateContinue(ostream &out);
-	void generateBreak(ostream &out);
+	virtual void generateBreak(ostream &out) override;
 	void alternative(ostream &out, expression *e=NULL); /* enable else or elsif condition */
 	virtual void close(ostream &out) override; /* end if */
 
 	explicit conditional(expression *e):codeType(T_IF);
-	virtual ~conditional()
-	{}
+	virtual ~conditional();
 };
 
 /* looping constructs */
 class repeatLoop:public codeType
 {
-	shared_ptr<label>loopStart;
-	shared_ptr<label>loopEnd;
+	label *loopStart;
+	label *loopEnd;
 public:
-	virtual void close(ostream &out, expression *) override;
+	virtual void generateBreak(ostream &out) override;
+	virtual void close(ostream &out, expression *e) override;
 
-	explicit repeatLoop():codeType(T_REPEATLOOP);
-	virtual ~repeatLoop()
-	{}
+	explicit repeatLoop(ostream &out):codeType(T_REPEATLOOP);
+	virtual ~repeatLoop();
 };
 
 class doLoop:public codeType
 {
-	shared_ptr<label>loopStart;
-	shared_ptr<label>loopEnd;
+	label *loopStart;
+	label *loopEnd;
 public:
-	virtual void close();
+	virtual void generateBreak(ostream &out) override;
+	virtual void close(ostream &out) override;
 
 	explicit doLoop():codeType(T_DOLOOP);
-	virtual ~doLoop()
-	{}
+	virtual ~doLoop();
 };
 
 class whileLoop:public codeType
 {
-	shared_ptr<label> loopContinue;
-	shared_ptr<label> loopExit;
-	expression cond;
+	label *loopContinue;
+	label *loopStart;
+	label *loopEnd;
+	expression *cond;
 public:
-	virtual void close();
+	virtual void generateBreak(ostream &out) override;
+	virtual void close(ostream &out) override;
 
-	explicit whileLoop(expression e):codeType(T_WHILELOOP);
-	virtual ~whileLoop()
+	explicit whileLoop(ostream &out, expression *e):codeType(T_WHILELOOP);
+	virtual ~whileLoop();
+};
+
+class variable:public operands
+{
+public:
+	void assignment(ostream &out, expression *value);
+	explicit variable(ostream &scope, string &name, enum TYPES t):operands(t);
+	virtual variable()
+	{}
+}
+
+class arrayType:public variable
+{
+	list<unsigned int> dimensions;
+public:
+	virtual void boxName(ostream &out, list<unsigned int>indexes) override;
+
+	explicit arrayType(ostream &scope, string &name, enum TYPES t, list<unsigned int>dim);/*:variable(scope, name, t);*/
+	virtual ~arrayType()
 	{}
 };
 
-class variable;
-
-/* TODO: Define expression constant ONE */
 class forLoop:public codeType
 {
-	shared_ptr<variable *>var;
-	shared_ptr<label>loopContinue;
-	shared_ptr<label>loopExit;
+	variable *var;
+	whileLoop *infrastructure;
 	expression *step;
-	expression *cond;
 public:
-	virtual void close();
+	virtual void generateBreak(ostream &out);
+	virtual void close(ostream &out);
 
-	explicit forLoop(string &name, enum TYPES t, expression *start, expression *stop, expression *stepVal):assignment(name, t, start)
-	{
-		this->cond=stop;
-		this->step=stepVal;
-	}
-
-	explicit forLoop(string &name, enum TYPES t, expression *start, expression *stop)
-	{
-		extern operands *ONE;
-		forLoop(name, t, start, stop, ONE);
-	}
-
+	explicit forLoop(ostream &out, ostream &k, variable *v, expression *start, expression *stop, expression *stepVal=NULL);
 	virtual ~forLoop();
 };
 
@@ -347,7 +358,6 @@ class fn:codeType
 	shared_ptr<label>ret;
 	unsigned int parameters;
 public:
-	static bool isCallStackEmpty() {return callStack.size()>0;}
 	static void dumpCallStack(ostream &out);
 	void setParameters(unsigned int num) const {this->parameters=num;}
 
@@ -358,31 +368,12 @@ public:
 	void generateGosub(ostream &out, shared_ptr<label> sub);
 	/* must be called after label::generateOnNSkip */
 	void generateOnNSub(ostream &out, expression *e);
-	virtual void close();
+	virtual void generateBreak(ostream &out);
+	virtual void close(ostream &out);
 
 	fn(string &name);
 	fn(label *gosub);
 	virtual ~fn();
-};
-
-class variable:public operands
-{
-public:
-	static assignment(expression *value);
-	explicit variable(ostream &scope, string &name, enum TYPES t):operands(t);
-	virtual variable()
-	{}
-}
-
-class arrayType:public variable
-{
-	list<unsigned int> dimensions;
-public:
-	virtual void boxName(ostream &out, list<unsigned int>indexes) override;
-
-	explicit arrayType(ostream &scope, string &name, enum TYPES t, list<unsigned int>dim):variable(scope, name, t);
-	virtual ~arrayType()
-	{}
 };
 
 /* The next two structures are used to implement the PRINT statement. */
