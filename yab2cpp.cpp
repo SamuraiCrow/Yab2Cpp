@@ -1,18 +1,25 @@
+/*
+**	Yab2Cpp
+**
+**	Transpiler by Samuel D. Crow
+**
+**	Based on Yab
+**
+*/
 #include "yab2cpp.h"
 
-enum COMPILEERRORS errorLevel=E_OK;
+enum COMPILE_ERRORS errorLevel=E_OK;
 unsigned int mode=0;
 unsigned int indentLevel=0;
 bool scopeGlobal=true;
 
-extern ofstream output_cpp;
-extern ofstream funcs_h;
-extern ofstream heap_h;
-extern ofstream consts_h;
-extern ofstream logfile;
-extern ofstream varNames;
-
-extern ifstream src;
+ifstream src;
+ofstream output_cpp;
+ofstream funcs_h;
+ofstream heap_h;
+ofstream consts_h;
+ofstream logfile;
+ofstream varNames;
 
 /* private prototypes */
 void helpText(string &);
@@ -173,6 +180,7 @@ static void operands::dumpVars(ostream &out)
 	}
 	out << endl;
 }
+
 unsigned int operands::getOrCreateStr(ostream &k, string &s)
 {
 	auto iter=constStr.find(s);
@@ -286,6 +294,16 @@ void operands::generateBox(ostream &out)
 		break;
 	}
 	out << this->getID() << ";\n";
+}
+
+operands *operands::getOrCreateGlobal(ostream &heap, string &s, enum TYPES t)
+{
+	operands op*=operands::globals->find(s);
+	if (op==globals.end())
+	{
+		op=new variable(heap, s, t);
+	}
+	return op;
 }
 
 void operands::boxName(ostream &out)
@@ -444,259 +462,64 @@ expression::~expression()
 	}
 }
 
-/* base class of all the code structure types */
 
-codeType::codeType(enum CODES t)
+/* variable definitions */
+variable::variable(ostream &scope, string &name, enum TYPES t):operands(t)
 {
-	this->id= ++nextID;
-	nesting.push_back(this);
-	this->type=t;
+	this->generateBox(scope);
 }
 
-codeType *codeType::getCurrent()
+variable *variable::getOrCreateVarName(ostream &func, ostream &heap, string &name, enum TYPES t)
 {
-	return nesting.back;
-}
-
-void codeType::close()
-{
-	nesting.pop_back();
-}
-
-/* label definitions and helper routines */
-
-label *label::find(string &s)
-{
-	auto ret=lookup.find(s);
-	return(ret==lookup.end()?NULL:ret->second);
-}
-
-void label::dumpLabels(ostream &v)
-{
-	v << "Global Labels\n\n";
-	for(auto iter=lookup.begin(); iter!=lookup.end(); ++iter)
+	variable *v;
+	if (!scopeGlobal)
 	{
-		v << "label " << iter->first << " has ID " << iter->second->getID() << "\n" ;
+		fn *currentFunc=fn::getCurrentSub();
+		v=fn::getOrCreateVar(func, heap, t, name, false);
+		return v;
 	}
-	v << endl;
+	return reinterpret_cast<variable *>operands::getOrCreateGlobal(heap, name);
 }
 
-void label::generateJumpTo(ostream &out)
+void variable::assignment(expression *value)
 {
-	out << "state=" << this->getID() << ";\nbreak;\n";
-}
-
-void label::generateOnNSkip(ostream &k, list<label *> &dest)
-{
-	if (dest->size()<2)
+	operands *op=value->evaluate();
+	enum TYPES t=op->getSimpleVarType();
+	switch (this->getType())
 	{
-		errorLevel=E_BAD_SYNTAX;
-		exit(1);
+		case T_FLOATVAR:
+			if (t==T_INTVAR)
+			{
+				/* TODO: convert int to float */
+			}
+			else
+			{
+				if (t!=T_FLOATVAR)
+				{
+					errorLevel=E_TYPE_MISMATCH;
+					exit(1);
+				}
+			}
+			break;
+		default:
+			if (t!=this->getType())
+			{
+				errorLevel=E_TYPE_MISMATCH;
+				exit(1);
+			}
+			break;
 	}
-	auto iter=dest.start(); 
-	k << "j" << this->getID() << "[]={" << *iter;
-	++iter;
-	while(iter!=dest.end())
-	{
-		k << ", " << *iter;
-		++iter;
-	}
-	k << "}\njs" << this->getID()<< "=" << dest->size() << ";\n";
-}
-
-void label::generateOnNTo(ostream &out, expression *e)
-{
-	operands *o=e->evaluate();
-	if (o->getType()==T_INT||o->getType()==T_INTVAR)
-	{
-		out << "if(";
-		o->boxName(out);
-		out << ">=0 && ";
-		o->boxName(out);
-		out << "<js" << this->getID() << ")state=j["; 
-		o->boxName(out);
-		out << "];\nbreak;\n";
-	}
-	delete e;
-}
-
-void label::generateCondJump(ostream &out, expression *e)
-{
-	operands *o=e->evaluate();
-	if (o->getType()==T_INT||o->getType()==T_INTVAR)
-	{
-		out << "if(";
-		o->boxName(out);
-		out << "!=0)state=" << this->getID() << ";\nbreak;\n";
-	}
-	delete e;
-}
-
-void label::generate(ostream &out)
-{
-	out << "case " << this->getID() <<":\n";
-}
-
-/* conditional definition */
-
-conditional::conditional(ostream &out, expression *e):codeType(T_IF)
-{
-	this->redo=new label();
-	redo->generate(out);
-	this->done=new label();
-	expression *f=new expression(e,O_NOT);
-	this->chain=new label();
-	chain->generateCondJump(out, f);
-}
-
-void conditional::generateBreak(ostream &out)
-{
-	done->generateJumpTo(out);
-}
-
-void conditional::generateContinue(ostream &out)
-{
-	redo->generateJumpTo(out);
-}
-
-void conditional::alternative(ostream &out, expression *e=NULL)
-{
-	done->generateJumpTo(out);
-	this->chain->generate();
-	delete this->chain;
-	this->chain=NULL;
-	if(e!=NULL)
-	{
-		this->chain=new label();
-		expression *f=new expression(e,O_NOT);
-		chain->generateJumpCond(out, f);
-	}
-}
-
-void conditional::close(ostream &out)
-{
-	if(this->chain)
-	{
-		/* elsif ended without else in between */
-		errorLevel=E_BAD_SYNTAX;
-		exit(1);
-	}
-	this->done->generate();
-}
-
-conditional::~conditional()
-{
-	delete this->done;
-	delete this->redo;
-}
-
-/* Loop definitions */
-repeatLoop::repeatLoop(ostream &out):codeType(T_REPEATLOOP)
-{
-	this->loopStart=new label();
-	this->loopEnd=new label();
-	loopStart->generate(out;)
-}
-
-void repeatLoop::generateBreak(ostream &out)
-{
-	loopEnd->generateJumpTo(out);
-}
-
-void repeatLoop::close(ostream &out, expression *e)
-{
-	expression *f=new expression(e, O_NOT);
-	loopStart->generateCondJump(out, f);
-	loopEnd->generate(out);
-}
-
-repeatLoop::~repeatLoop()
-{
-	delete loopStart;
-	delete loopEnd;
-}
-
-doLoop::doLoop(ostream &out):codeType(T_DOLOOP)
-{
-	this->loopStart=new label();
-	this->loopEnd=new label();
-	loopStart->generate(out;)
-}
-
-void doLoop::generateBreak(ostream &out)
-{
-	loopEnd->generateJumpTo(out);
-}
-
-void doLoop::close(ostream &out)
-{
-	this->loopStart->generateJumpTo(out);
-	this->loopEnd->generate(out);
-}
-
-doLoop::~doLoop()
-{	delete loopStart;
-	delete loopEnd;
-}
-
-whileLoop::whileLoop(ostream &out, expression *e):codeType(T_WHILELOOP)
-{
-	loopContinue=new label();
-	loopStart=new label();
-	loopEnd=new label();
-	cond=e;
-	loopStart->generateJumpTo(out);
-	loopContinue->generate(out);
-}
-
-void whileLoop::generateBreak(ostream &out)
-{
-	loopEnd->generateJumpTo(out);
-}
-
-void whileLoop::close(ostream &out)
-{
-	loopStart->generate(out);
-	loopContinue->generateJumpCond(out, cond);
-	loopEnd->generate(out);
-}
-
-whileLoop::~whileLoop()
-{
-	delete loopStart;
-	delete loopContinue;
-	delete loopEnd;
-}
-
-/* TODO: make the stopper into a full range check */
-forLoop::forLoop(ostream &out, ostream &k, variable *v, expression *start, expression *stop, expression *stepVal=NULL):codeType(T_FORLOOP)
-{
-	expression *stopper=new expression(new expression (v), O_UNEQUAL, stop);
-	v->assignment(out, start);
-	infrastructure=new whileLoop(out, stopper);
-	if (stepVal)
-	{
-		step=stepVal;
-	}
-	else
-	{
-		step=new expression(operands::createConst(k, "1", T_INT));
-	}
-}
-
-void forLoop::generateBreak(ostream &out)
-{
-	infrastructure->generateBreak(out);
-}
-
-void forLoop::close(ostream &out)
-{
-	expression *stepper=new expression(new expression(v), O_PLUS, step);
-	v->assignment(out, stepper)
-	infrastructure->close(ostream &out);
+	this->boxName(output_cpp);
+	output_cpp << "=";
+	op->boxName(output_cpp);
+	output_cpp << ";\n";
 }
 
 /* function definitions */
+fn *fn::getCurrentSub()
+{
+	return callStack.back;
+}
 
 void fn::generateOnNSub(ostream &out, expression *e)
 {

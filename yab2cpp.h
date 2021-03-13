@@ -20,6 +20,13 @@ using namespace std;
 #define VER_MINOR 0
 #define VER_RELEASE 1
 
+extern ofstream output_cpp;
+extern ofstream funcs_h;
+extern ofstream heap_h;
+extern ofstream consts_h;
+extern ofstream logfile;
+extern ofstream varNames;
+
 /*
 ** list of all compiler errors 
 **
@@ -35,6 +42,11 @@ enum COMPILE_ERRORS {
 	E_INTERNAL,
 	E_DUPLICATE_SYMBOL
 };
+
+extern enum COMPILE_ERRORS errorLevel;
+extern unsigned int mode;
+extern unsigned int indentLevel;
+extern bool scopeGlobal;
 
 /* These correspond to the enum COMPILE_ERRORS. */
 const char *COMPILE_ERROR_NAMES[]={
@@ -170,6 +182,7 @@ public:
 	static void dumpVars(ostream &out);
 	static unsigned int getOrCreateStr(ostream &k, string &s);
 	static operands *createConst(ostream &k, string &s, enum TYPES t);
+	static operands *getOrCreateGlobal(ostream &heap, string &s, enum TYPES t);
 
 	enum TYPES getSimpleVarType();
 	void generateBox(ostream &out);
@@ -222,7 +235,8 @@ public:
 	enum CODES getType() const {return this->type;}
 	unsigned int getID() const {return this->id;}
 
-	codeType *getCurrent();
+	static codeType *getCurrent();
+
 	virtual void close();
 	virtual void generateBreak(ostream &out)=0;
 
@@ -272,7 +286,7 @@ public:
 	void alternative(ostream &out, expression *e=NULL); /* enable else or elsif condition */
 	virtual void close(ostream &out) override; /* end if */
 
-	explicit conditional(expression *e):codeType(T_IF);
+	explicit conditional(ostream &out, expression *e);
 	virtual ~conditional();
 };
 
@@ -285,7 +299,7 @@ public:
 	virtual void generateBreak(ostream &out) override;
 	virtual void close(ostream &out, expression *e) override;
 
-	explicit repeatLoop(ostream &out):codeType(T_REPEATLOOP);
+	explicit repeatLoop(ostream &out);
 	virtual ~repeatLoop();
 };
 
@@ -318,8 +332,10 @@ public:
 class variable:public operands
 {
 public:
+	static variable *getOrCreateVarName(ostream &func, ostream &heap, string &name, enum TYPES t);
+
 	void assignment(ostream &out, expression *value);
-	explicit variable(ostream &scope, string &name, enum TYPES t):operands(t);
+	explicit variable(ostream &scope, string &name, enum TYPES t);
 	virtual variable()
 	{}
 }
@@ -330,7 +346,7 @@ class arrayType:public variable
 public:
 	virtual void boxName(ostream &out, list<unsigned int>indexes) override;
 
-	explicit arrayType(ostream &scope, string &name, enum TYPES t, list<unsigned int>dim);/*:variable(scope, name, t);*/
+	explicit arrayType(ostream &heap, string &name, enum TYPES t, list<unsigned int>dim);/*:variable(scope, name, t);*/
 	virtual ~arrayType()
 	{}
 };
@@ -338,6 +354,8 @@ public:
 class forLoop:public codeType
 {
 	variable *var;
+	variable *startTemp;
+	variable *stopTemp;
 	whileLoop *infrastructure;
 	expression *step;
 public:
@@ -358,11 +376,12 @@ class fn:codeType
 	shared_ptr<label>ret;
 	unsigned int parameters;
 public:
+	static variable *getOrCreateVar(ostream &func, ostream &heap, enum TYPES t, string &s, bool stat);
 	static void dumpCallStack(ostream &out);
+	static fn *getCurrentSub();
+
 	void setParameters(unsigned int num) const {this->parameters=num;}
 
-	void addLocal(operands *);
-	void addStatic(operands *);
 	void generateCall(ostream &out, string &name, unsigned int params);
 	void generateReturn(ostream &out, expression *expr=NULL);
 	void generateGosub(ostream &out, shared_ptr<label> sub);
