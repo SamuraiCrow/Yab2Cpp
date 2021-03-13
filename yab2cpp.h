@@ -164,6 +164,7 @@ enum OPERATORS
 	O_INVERT,
 	O_OR,
 	O_AND,
+	O_STRING_CONCAT,
 	O_TERM
 };
 
@@ -185,8 +186,8 @@ public:
 	static operands *getOrCreateGlobal(ostream &heap, string &s, enum TYPES t);
 
 	enum TYPES getSimpleVarType();
-	void generateBox(ostream &out);
-	virtual void boxName(ostream &out);
+	void generateBox(ostream &scope);
+	virtual string &boxName();
 	enum TYPES coerceTypes();
 
 	explicit operands(enum TYPES t);
@@ -208,6 +209,7 @@ public:
 
 	bool isBinOp();
 	operands *evaluate();
+	operands *stringEval();
 
 	/* r is NULL for unary operators */
 	expression(expression *l, enum OPERATORS o, expression *r=NULL)
@@ -238,7 +240,7 @@ public:
 	static codeType *getCurrent();
 
 	virtual void close();
-	virtual void generateBreak(ostream &out)=0;
+	virtual void generateBreak()=0;
 
 	explicit codeType(enum CODES t);
 	virtual ~codeType()
@@ -255,11 +257,11 @@ public:
 
 	unsigned int getID() const {return id;}
 
-	void generateJumpTo(ostream &out);
+	void generateJumpTo();
 	void generateOnNSkip(ostream &k, list<label *> &dest);
-	void generateOnNTo(ostream &out, expression *e);
-	void generateCondJump(ostream &out, expression *e);
-	void generate(ostream &out);
+	void generateOnNTo(expression *e);
+	void generateCondJump(expression *e);
+	void generate();
 	
 	static label *find(string &s);
 
@@ -281,12 +283,12 @@ class conditional:public codeType
 	label *done; /* for break or after "then" condition */
 	label *chain; /* For elsif command */
 public:
-	void generateContinue(ostream &out);
-	virtual void generateBreak(ostream &out) override;
-	void alternative(ostream &out, expression *e=NULL); /* enable else or elsif condition */
-	virtual void close(ostream &out) override; /* end if */
+	void generateContinue();
+	virtual void generateBreak() override;
+	void alternative(expression *e=NULL); /* enable else or elsif condition */
+	virtual void close() override; /* end if */
 
-	explicit conditional(ostream &out, expression *e);
+	explicit conditional(expression *e);
 	virtual ~conditional();
 };
 
@@ -296,10 +298,10 @@ class repeatLoop:public codeType
 	label *loopStart;
 	label *loopEnd;
 public:
-	virtual void generateBreak(ostream &out) override;
-	virtual void close(ostream &out, expression *e) override;
+	virtual void generateBreak() override;
+	virtual void close(expression *e) override;
 
-	explicit repeatLoop(ostream &out);
+	explicit repeatLoop();
 	virtual ~repeatLoop();
 };
 
@@ -308,8 +310,8 @@ class doLoop:public codeType
 	label *loopStart;
 	label *loopEnd;
 public:
-	virtual void generateBreak(ostream &out) override;
-	virtual void close(ostream &out) override;
+	virtual void generateBreak() override;
+	virtual void close() override;
 
 	explicit doLoop():codeType(T_DOLOOP);
 	virtual ~doLoop();
@@ -322,10 +324,10 @@ class whileLoop:public codeType
 	label *loopEnd;
 	expression *cond;
 public:
-	virtual void generateBreak(ostream &out) override;
-	virtual void close(ostream &out) override;
+	virtual void generateBreak() override;
+	virtual void close() override;
 
-	explicit whileLoop(ostream &out, expression *e):codeType(T_WHILELOOP);
+	explicit whileLoop(expression *e):codeType(T_WHILELOOP);
 	virtual ~whileLoop();
 };
 
@@ -334,7 +336,7 @@ class variable:public operands
 public:
 	static variable *getOrCreateVarName(ostream &func, ostream &heap, string &name, enum TYPES t);
 
-	void assignment(ostream &out, expression *value);
+	void assignment(expression *value);
 	explicit variable(ostream &scope, string &name, enum TYPES t);
 	virtual variable()
 	{}
@@ -344,7 +346,7 @@ class arrayType:public variable
 {
 	list<unsigned int> dimensions;
 public:
-	virtual void boxName(ostream &out, list<unsigned int>indexes) override;
+	virtual string &boxName(list<unsigned int>indexes) override;
 
 	explicit arrayType(ostream &heap, string &name, enum TYPES t, list<unsigned int>dim);/*:variable(scope, name, t);*/
 	virtual ~arrayType()
@@ -359,10 +361,10 @@ class forLoop:public codeType
 	whileLoop *infrastructure;
 	expression *step;
 public:
-	virtual void generateBreak(ostream &out);
-	virtual void close(ostream &out);
+	virtual void generateBreak();
+	virtual void close();
 
-	explicit forLoop(ostream &out, ostream &k, variable *v, expression *start, expression *stop, expression *stepVal=NULL);
+	explicit forLoop(ostream &k, variable *v, expression *start, expression *stop, expression *stepVal=NULL);
 	virtual ~forLoop();
 };
 
@@ -376,19 +378,19 @@ class fn:codeType
 	shared_ptr<label>ret;
 	unsigned int parameters;
 public:
-	static variable *getOrCreateVar(ostream &func, ostream &heap, enum TYPES t, string &s, bool stat);
-	static void dumpCallStack(ostream &out);
+	static variable *getOrCreateVar(enum TYPES t, string &s, bool stat);
+	static void dumpCallStack();
 	static fn *getCurrentSub();
 
 	void setParameters(unsigned int num) const {this->parameters=num;}
 
-	void generateCall(ostream &out, string &name, unsigned int params);
-	void generateReturn(ostream &out, expression *expr=NULL);
-	void generateGosub(ostream &out, shared_ptr<label> sub);
+	void generateCall(string &name, unsigned int params);
+	void generateReturn(expression *expr=NULL);
+	void generateGosub(shared_ptr<label> sub);
 	/* must be called after label::generateOnNSkip */
-	void generateOnNSub(ostream &out, expression *e);
-	virtual void generateBreak(ostream &out);
-	virtual void close(ostream &out);
+	void generateOnNSub(expression *e);
+	virtual void generateBreak();
+	virtual void close();
 
 	fn(string &name);
 	fn(label *gosub);

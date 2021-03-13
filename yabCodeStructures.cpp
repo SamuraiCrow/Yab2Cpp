@@ -9,7 +9,6 @@
 #include "yab2cpp.h"
 
 /* base class of all the code structure types */
-
 codeType::codeType(enum CODES t)
 {
 	this->id= ++nextID;
@@ -28,29 +27,28 @@ void codeType::close()
 }
 
 /* label definitions and helper routines */
-
 label *label::find(string &s)
 {
 	auto ret=lookup.find(s);
 	return(ret==lookup.end()?NULL:ret->second);
 }
 
-void label::dumpLabels(ostream &v)
+void label::dumpLabels()
 {
-	v << "Global Labels\n\n";
+	varNames << "Global Labels\n\n";
 	for(auto iter=lookup.begin(); iter!=lookup.end(); ++iter)
 	{
-		v << "label " << iter->first << " has ID " << iter->second->getID() << "\n" ;
+		varNames << "label " << iter->first << " has ID " << iter->second->getID() << "\n" ;
 	}
-	v << endl;
+	varNames << endl;
 }
 
-void label::generateJumpTo(ostream &out)
+void label::generateJumpTo()
 {
-	out << "state=" << this->getID() << ";\nbreak;\n";
+	output_cpp << "state=" << this->getID() << ";\nbreak;\n";
 }
 
-void label::generateOnNSkip(ostream &k, list<label *> &dest)
+void label::generateOnNSkip(list<label *> &dest)
 {
 	if (dest->size()<2)
 	{
@@ -58,74 +56,69 @@ void label::generateOnNSkip(ostream &k, list<label *> &dest)
 		exit(1);
 	}
 	auto iter=dest.start(); 
-	k << "j" << this->getID() << "[]={" << *iter;
+	consts_h << "j" << this->getID() << "[]={" << *iter;
 	++iter;
 	while(iter!=dest.end())
 	{
-		k << ", " << *iter;
+		consts_h << ", " << *iter;
 		++iter;
 	}
-	k << "}\njs" << this->getID()<< "=" << dest->size() << ";\n";
+	consts_h << "}\njs" << this->getID()<< "=" << dest->size() << ";\n";
 }
 
-void label::generateOnNTo(ostream &out, expression *e)
+void label::generateOnNTo(expression *e)
 {
 	operands *o=e->evaluate();
 	if (o->getType()==T_INT||o->getType()==T_INTVAR)
 	{
-		out << "if(";
-		o->boxName(out);
-		out << ">=0 && ";
-		o->boxName(out);
-		out << "<js" << this->getID() << ")state=j["; 
-		o->boxName(out);
-		out << "];\nbreak;\n";
+		output_cpp<< "if(" << o->boxName() << ">=0 && "
+		    << o->boxName() << "<js" << this->getID() << ")state=j["
+		    << o->boxName() << "];\nbreak;\n";
 	}
 	delete e;
 }
 
-void label::generateCondJump(ostream &out, expression *e)
+void label::generateCondJump(expression *e)
 {
 	operands *o=e->evaluate();
 	if (o->getType()==T_INT||o->getType()==T_INTVAR)
 	{
-		out << "if(";
-		o->boxName(out);
-		out << "!=0)state=" << this->getID() << ";\nbreak;\n";
+		output_cpp<< "if(" << o->boxName() 
+            << "!=0)state=" << this->getID() << ";\nbreak;\n";
 	}
 	delete e;
 }
 
-void label::generate(ostream &out)
+void label::generate()
 {
-	out << "case " << this->getID() <<":\n";
+	output_cpp<< "case " << this->getID() <<":\n";
 }
 
 /* conditional definition */
 
-conditional::conditional(ostream &out, expression *e):codeType(T_IF)
+conditional::conditional(expression *e):codeType(T_IF)
 {
 	this->redo=new label();
-	redo->generate(out);
+	redo->generate();
 	this->done=new label();
 	expression *f=new expression(e,O_NOT);
 	this->chain=new label();
-	chain->generateCondJump(out, f);
+	chain->generateCondJump(f);
 }
 
-void conditional::generateBreak(ostream &out)
+void conditional::generateBreak()
 {
-	done->generateJumpTo(out);
+	done->generateJumpTo();
 }
 
-void conditional::generateContinue(ostream &out)
+void conditional::generateContinue()
 {
-	redo->generateJumpTo(out);
+	redo->generateJumpTo();
 }
 
-void conditional::alternative(ostream &out, expression *e=NULL)
+void conditional::alternative(expression *e=NULL)
 {
-	done->generateJumpTo(out);
+	done->generateJumpTo();
 	this->chain->generate();
 	delete this->chain;
 	this->chain=NULL;
@@ -133,11 +126,11 @@ void conditional::alternative(ostream &out, expression *e=NULL)
 	{
 		this->chain=new label();
 		expression *f=new expression(e,O_NOT);
-		chain->generateJumpCond(out, f);
+		chain->generateJumpCond(f);
 	}
 }
 
-void conditional::close(ostream &out)
+void conditional::close()
 {
 	if(this->chain)
 	{
@@ -155,23 +148,23 @@ conditional::~conditional()
 }
 
 /* Loop definitions */
-repeatLoop::repeatLoop(ostream &out):codeType(T_REPEATLOOP)
+repeatLoop::repeatLoop():codeType(T_REPEATLOOP)
 {
 	this->loopStart=new label();
 	this->loopEnd=new label();
-	loopStart->generate(out;)
+	loopStart->generate();
 }
 
-void repeatLoop::generateBreak(ostream &out)
+void repeatLoop::generateBreak()
 {
-	loopEnd->generateJumpTo(out);
+	loopEnd->generateJumpTo();
 }
 
-void repeatLoop::close(ostream &out, expression *e)
+void repeatLoop::close(expression *e)
 {
 	expression *f=new expression(e, O_NOT);
-	loopStart->generateCondJump(out, f);
-	loopEnd->generate(out);
+	loopStart->generateCondJump(f);
+	loopEnd->generate();
 }
 
 repeatLoop::~repeatLoop()
@@ -180,22 +173,22 @@ repeatLoop::~repeatLoop()
 	delete loopEnd;
 }
 
-doLoop::doLoop(ostream &out):codeType(T_DOLOOP)
+doLoop::doLoop():codeType(T_DOLOOP)
 {
 	this->loopStart=new label();
 	this->loopEnd=new label();
-	loopStart->generate(out;)
+	loopStart->generate();
 }
 
-void doLoop::generateBreak(ostream &out)
+void doLoop::generateBreak()
 {
-	loopEnd->generateJumpTo(out);
+	loopEnd->generateJumpTo();
 }
 
-void doLoop::close(ostream &out)
+void doLoop::close()
 {
-	this->loopStart->generateJumpTo(out);
-	this->loopEnd->generate(out);
+	this->loopStart->generateJumpTo();
+	this->loopEnd->generate();
 }
 
 doLoop::~doLoop()
@@ -203,26 +196,26 @@ doLoop::~doLoop()
 	delete loopEnd;
 }
 
-whileLoop::whileLoop(ostream &out, expression *e):codeType(T_WHILELOOP)
+whileLoop::whileLoop(expression *e):codeType(T_WHILELOOP)
 {
 	loopContinue=new label();
 	loopStart=new label();
 	loopEnd=new label();
 	cond=e;
-	loopStart->generateJumpTo(out);
-	loopContinue->generate(out);
+	loopStart->generateJumpTo();
+	loopContinue->generate();
 }
 
-void whileLoop::generateBreak(ostream &out)
+void whileLoop::generateBreak()
 {
-	loopEnd->generateJumpTo(out);
+	loopEnd->generateJumpTo();
 }
 
-void whileLoop::close(ostream &out)
+void whileLoop::close()
 {
-	loopStart->generate(out);
-	loopContinue->generateJumpCond(out, cond);
-	loopEnd->generate(out);
+	loopStart->generate();
+	loopContinue->generateJumpCond(cond);
+	loopEnd->generate();
 }
 
 whileLoop::~whileLoop()
@@ -232,31 +225,31 @@ whileLoop::~whileLoop()
 	delete loopEnd;
 }
 
-forLoop::forLoop(ostream &out, ostream &k, variable *v, expression *start, expression *stop, expression *stepVal=NULL):codeType(T_FORLOOP)
+forLoop::forLoop(variable *v, expression *start, expression *stop, expression *stepVal=NULL):codeType(T_FORLOOP)
 {
 	/*v=start;
 	stopTemp=stop;*/
-	v->assignment(out, start);
-	stopTemp->assignment(out, stop);
+	v->assignment(start);
+	stopTemp->assignment(stop);
 	/* if (v<stopTemp) */
-	conditional *c=new conditional(out, new expression(new expression(v), O_LESS, new expression(stopTemp)));
+	conditional *c=new conditional(new expression(new expression(v), O_LESS, new expression(stopTemp)));
 	/* startTemp=v;*/
-	startTemp->assignment(out, new expression(v));
+	startTemp->assignment(new expression(v));
 	/* else */
-	c->alternative(out);
+	c->alternative();
 	/* startTemp=stopTemp;
 	stopTemp=v;*/
-	startTemp->assignment(out, new expression(stopTemp));
-	stopTemp->assignment(out, new expression(v));
+	startTemp->assignment(new expression(stopTemp));
+	stopTemp->assignment(new expression(v));
 	/* endif */
-	c->close(out);
+	c->close();
 	delete c;
 	/* while (v<=stopTemp && v>=startTemp) */
 	expression *stopper1=new expression(new expression(v), O_LESS_EQUAL, new expression(stopTemp));
 	expression *stopper2=new expression(new expression(v), O_GREATER_EQUAL, new expression(startTemp));
 	expression *stopper=new expression(stopper1, O_AND, stopper2);
-	this->infrastructure=new whileLoop(out, new expression(stopper, O_UNEQUAL, 
-		new expression(operands::createConst(k, "0", T_INT))));
+	this->infrastructure=new whileLoop(new expression(stopper, O_UNEQUAL, 
+		new expression(operands::createConst("0", T_INT))));
 	if (stepVal)
 	{
 		step=stepVal;
@@ -264,19 +257,19 @@ forLoop::forLoop(ostream &out, ostream &k, variable *v, expression *start, expre
 	else
 	{
 		/* if not present "step" is assumed to be 1 */
-		step=new expression(operands::createConst(k, "1", T_INT));
+		step=new expression(operands::createConst("1", T_INT));
 	}
 }
 
-void forLoop::generateBreak(ostream &out)
+void forLoop::generateBreak()
 {
-	infrastructure->generateBreak(out);
+	infrastructure->generateBreak();
 }
 
-void forLoop::close(ostream &out)
+void forLoop::close()
 {
 	/* v=v+step; */
 	expression *stepper=new expression(new expression(v), O_PLUS, step);
-	v->assignment(out, stepper)
-	infrastructure->close(ostream &out);
+	v->assignment(stepper)
+	infrastructure->close();
 }
