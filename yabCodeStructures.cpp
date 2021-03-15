@@ -11,7 +11,6 @@
 /* base class of all the code structure types */
 codeType::codeType(enum CODES t)
 {
-	this->id= ++nextID;
 	nesting.push_back(this);
 	this->type=t;
 }
@@ -48,7 +47,7 @@ void label::generateJumpTo()
 	output_cpp << "state=" << this->getID() << ";\nbreak;\n";
 }
 
-void label::generateOnNSkip(list<label *> &dest)
+void label::generateOnNSkip(list<shared_ptr<label> >dest)
 {
 	if (dest->size()<2)
 	{

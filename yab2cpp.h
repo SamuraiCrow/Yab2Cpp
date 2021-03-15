@@ -40,7 +40,12 @@ enum COMPILE_ERRORS {
 	E_BAD_ALLOC,
 	E_STACK_UNDERFLOW,
 	E_INTERNAL,
-	E_DUPLICATE_SYMBOL
+	E_DUPLICATE_SYMBOL,
+	E_END_FUNCTION,
+	E_GOSUB_CANNOT_RETURN_VALUE,
+	E_SUBROUTINE_NOT_FOUND,
+	E_TOO_MANY_PARAMETERS,
+	E_UNASSIGNABLE_TYPE
 };
 
 extern enum COMPILE_ERRORS errorLevel;
@@ -56,11 +61,14 @@ const char *COMPILE_ERROR_NAMES[]={
 	"failed allocation",
 	"stack underflow",
 	"internal compiler error",
-	"duplicated label"
+	"duplicated label",
+	"previous subroutine didn't end",
+	"value returned from gosub call",
+	"undefined subroutine name",
+	"too many parameters in function call",
+	"value cannot be assigned"
 };
 
-extern enum COMPILEERRORS errorLevel;
-	
 /* flags used internally by the compiler
 	(must be powers of 2) */
 #define COMPILE 1
@@ -70,7 +78,8 @@ extern enum COMPILEERRORS errorLevel;
 /* list of all variable and constant types */
 enum TYPES
 {
-	T_NONE=0,
+	T_UNKNOWN=0,
+	T_NONE,
 	T_STRING,
 	T_INT,
 	T_FLOAT,
@@ -80,6 +89,7 @@ enum TYPES
 	T_INTCALL_ARRAY,
 	T_FLOATCALL_ARRAY,
 	T_STRINGCALL_ARRAY,
+	T_VOIDCALL
 }
 /* list of all kinds of other code structures */
 enum CODES
@@ -97,11 +107,17 @@ enum CODES
 	T_ASSIGNMENT,
 	T_LABEL,
 	T_PARAMLIST,
-	T_DATAITEM
+	T_DATAITEM,
+	T_STRINGFUNC,
+	T_FLOATFUNC,
+	T_INTFUNC,
+	T_VOIDFUNC,
+	T_UNKNOWNFUNC
 };
 
 /* These correspond to the types of enum TYPES. */
 const string TYPENAMES[]={
+	"unknown",
 	"none",
 	"string constant",
 	"integer constant",
@@ -111,7 +127,9 @@ const string TYPENAMES[]={
 	"floating point variable",
 	"string array or function",
 	"integer array or function",
-	"floating point array or function"
+	"floating point array or function",
+	"string array or function",
+	"function"
 };
 
 const string CODETYPES[]={
@@ -127,7 +145,12 @@ const string CODETYPES[]={
 	"assignment",
 	"label",
 	"parameter list or array index",
-	"data item"
+	"data item",
+	"function returning string",
+	"function returning floating point",
+	"function returning integer",
+	"function returning nothing",
+	"function"
 };
 
 typedef union
@@ -165,8 +188,12 @@ enum OPERATORS
 	O_OR,
 	O_AND,
 	O_STRING_CONCAT,
+	O_INT_TO_FLOAT,
 	O_TERM
 };
+
+/* global prototype */
+void error(enum COMPILE_ERRORS err);
 
 /* internal states used by the parser */
 class operands
@@ -174,16 +201,17 @@ class operands
 	enum TYPES type;
 	unsigned int id;
 	static unsigned int nextID;
-	static unordered_map<string &, operands *> globals;
-	static unordered_map<string &, unsigned int> strConst;
+	static unordered_map<string, operands *> globals;
+	static unordered_map<string, unsigned int> strConst;
 public:
 	enum TYPES getType() const {return type;}
 	unsigned int getID() const {return id;}
 
+	static operands *findGlobal(string &s);
 	static void dumpVars(ostream &out);
-	static unsigned int getOrCreateStr(ostream &k, string &s);
-	static operands *createConst(ostream &k, string &s, enum TYPES t);
-	static operands *getOrCreateGlobal(ostream &heap, string &s, enum TYPES t);
+	static unsigned int getOrCreateStr(string &s);
+	static operands *createConst(string &s, enum TYPES t);
+	static operands *getOrCreateGlobal(string &s, enum TYPES t);
 
 	enum TYPES getSimpleVarType();
 	void generateBox(ostream &scope);
@@ -223,19 +251,17 @@ public:
 		op=x;
 		oper=O_TERM;
 	}
+	/*TODO: Recycle temporary variables when not in debug mode*/
 	virtual ~expression();
 };
 
 /* parent class of all code types */
 class codeType
 {
-	unsigned int id;
 	enum CODES type;
-	static unsigned int nextID;
 	static list<codeType *> nesting;
 public:
 	enum CODES getType() const {return this->type;}
-	unsigned int getID() const {return this->id;}
 
 	static codeType *getCurrent();
 
@@ -258,7 +284,7 @@ public:
 	unsigned int getID() const {return id;}
 
 	void generateJumpTo();
-	void generateOnNSkip(ostream &k, list<label *> &dest);
+	void generateOnNSkip(list<shared_ptr<label> >dest);
 	void generateOnNTo(expression *e);
 	void generateCondJump(expression *e);
 	void generate();
@@ -313,7 +339,7 @@ public:
 	virtual void generateBreak() override;
 	virtual void close() override;
 
-	explicit doLoop():codeType(T_DOLOOP);
+	explicit doLoop();
 	virtual ~doLoop();
 };
 
@@ -327,14 +353,15 @@ public:
 	virtual void generateBreak() override;
 	virtual void close() override;
 
-	explicit whileLoop(expression *e):codeType(T_WHILELOOP);
+	explicit whileLoop(expression *e);
 	virtual ~whileLoop();
 };
 
 class variable:public operands
 {
+	ostream &myScope;
 public:
-	static variable *getOrCreateVarName(ostream &func, ostream &heap, string &name, enum TYPES t);
+	static shared_ptr<variable>getOrCreateVarName(string &name, enum TYPES t);
 
 	void assignment(expression *value);
 	explicit variable(ostream &scope, string &name, enum TYPES t);
@@ -348,7 +375,7 @@ class arrayType:public variable
 public:
 	virtual string &boxName(list<unsigned int>indexes) override;
 
-	explicit arrayType(ostream &heap, string &name, enum TYPES t, list<unsigned int>dim);/*:variable(scope, name, t);*/
+	explicit arrayType(string &name, enum TYPES t, list<unsigned int>dim);/*:variable(scope, name, t);*/
 	virtual ~arrayType()
 	{}
 };
@@ -364,37 +391,46 @@ public:
 	virtual void generateBreak();
 	virtual void close();
 
-	explicit forLoop(ostream &k, variable *v, expression *start, expression *stop, expression *stepVal=NULL);
+	explicit forLoop(variable *v, expression *start, expression *stop, expression *stepVal=NULL);
 	virtual ~forLoop();
 };
 
 class fn:codeType
 {
-	static unordered_map<string, operands *>locals;
-	static unordered_map<string, operands *>statics;
-	static unordered_map<string, fn>functions;
-	static list<fn *> callStack;
+	static unordered_map<string, shared_ptr<variable> >locals;
+	static unordered_map<string, shared_ptr<variable> >statics;
+	static unordered_map<string, shared_ptr<fn> >functions;
+	static list<shared_ptr<fn> > callStack;
+	static unsigned int nextID;
+	list<shared_ptr<variable> >params;
+	unsigned int id;
 	enum TYPES kind;
+	shared_ptr<label>startAddr;
 	shared_ptr<label>ret;
-	unsigned int parameters;
+	/* private constructor used by generateGosub and generateOnNSub*/
+	fn(label *gosub);
 public:
 	static variable *getOrCreateVar(enum TYPES t, string &s, bool stat);
 	static void dumpCallStack();
-	static fn *getCurrentSub();
-
-	void setParameters(unsigned int num) const {this->parameters=num;}
-
-	void generateCall(string &name, unsigned int params);
-	void generateReturn(expression *expr=NULL);
-	void generateGosub(shared_ptr<label> sub);
+	static shared_ptr<fn>getCurrentSub();
+	static shared_ptr<fn>getSub(string &name);
+	static void generateGosub(shared_ptr<label> sub);
 	/* must be called after label::generateOnNSkip */
-	void generateOnNSub(expression *e);
+	static void generateOnNSub(expression *e);
+
+	unsigned int getID() const {return this->id;}
+	int getNumParams() const {return this->params.size;}
+	void addParameter(shared_ptr<variable>);
+
+	operands *generateCall(string &name, list<shared_ptr<operands> >&paramList);
+	operands *generateReturn(expression *expr);
+	void generateReturn();
 	virtual void generateBreak();
 	virtual void close();
 
-	fn(string &name);
-	fn(label *gosub);
-	virtual ~fn();
+	fn(string &name, enum CODES t);
+	virtual ~fn()
+	{}
 };
 
 /* The next two structures are used to implement the PRINT statement. */

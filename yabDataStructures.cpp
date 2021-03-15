@@ -9,6 +9,16 @@
 #include "yab2cpp.h"
 
 /* methods for operands */
+static operands *findGlobal(string &s)
+{
+	auto iter=operands::globals.find(s);
+	if (iter==operands::globals.end())
+	{
+		return NULL;
+	}
+	return iter->second;
+}
+
 static void operands::dumpVars()
 {
 	varNames << "Global Variables\n";
@@ -48,7 +58,7 @@ unsigned int operands::createConst(string &s, enum TYPES t)
 			exit(1);
 		}
 	}
-	k << me->getID() << "=" << s << ";\n";
+	consts_h << me->getID() << "=" << s << ";\n";
 	return me;
 }
 
@@ -69,40 +79,7 @@ enum TYPES operands::getSimpleVarType()
 		case T_STRINGVAR:
 			return T_STRINGVAR;
 	}
-	return T_NONE;
-}
-
-enum TYPES operands::coerceTypes(enum TYPES l, enum TYPES r)
-{
-	if this->isBinOp()
-	{
-		if (l==T_INTVAR && r==T_FLOATVAR)
-		{
-			/* promote l to float */
-			t=T_FLOATVAR;
-			break;
-		}
-		if (l==T_FLOAT && r==T_INT)
-		{
-			/* promote r to float */
-			t=T_FLOATVAR;
-			break;
-		}
-		if (l==r)
-		{
-			break;
-		}
-		errorLevel=E_TYPE_MISMATCH;
-		exit(1);
-	}
-	else
-	{
-		if (t==T_NONE)
-		{
-			errorLevel=E_TYPE_MISMATCH;
-		}
-	}
-
+	error(E_UNASSIGNABLE_TYPE);
 }
 
 /* operands used by expression parser and variables */
@@ -154,9 +131,7 @@ void operands::boxName(ostream &scope)
 		break;
 	
 	default:
-		errorLevel=E_INTERNAL;
-		exit(1);
-		break;
+		error(E_INTERNAL);
 	}
 	scope << "v" << this->getID();
 }
@@ -171,6 +146,7 @@ bool expression::isBinOp()
 		case O_NEGATE:
 		case O_NOT:
 		case O_INVERT:
+		case O_INT_TO_FLOAT:
 			return false;
 			break;
 	}
@@ -187,7 +163,20 @@ operands *expression::evaluate()
 	if (this->isBinOp())
 	{
 		r=this->getRight()->evaluate();
-		t=this->coerceTypes(l->getSimpleVarType(), r->getSimpleVarType());
+		enum TYPES lt=l->getSimpleVarType();
+		enum TYPES rt=r->getSimpleVarType();
+		if (lt==T_INTVAR && rt==T_FLOATVAR)
+		{
+			l=new expression(new expression(l), O_INT_TO_FLOAT)->evaluate();
+			lt=T_FLOATVAR;
+		}
+		if (lt==T_FLOATVAR && rt==T_INTVAR)
+		{
+			r=new expression(new expression(r), O_INT_TO_FLOAT)->evaluate();
+			rt=T_FLOATVAR;
+		}
+		if (lt!=rt)error(E_TYPE_MISMATCH);
+		t=lt;
 	}
 	else
 	{
@@ -208,13 +197,20 @@ operands *expression::evaluate()
 		output_cpp << this->op->boxName() << "= -" << l->boxName() << ";\n";
 		break;
 	case O_NOT:
-		this->op=new operands(t);
+		if (t!=T_INTVAR) error(E_TYPE_MISMATCH);
+		this->op=new operands(T_INTVAR);
 		this->op->generateBox(scope);
 		output_cpp << this->op->boxName() << "= !" << l->boxName() << ";\n";
 		break;
+	case O_INT_TO_FLOAT: /*Note: this duplicates functionality of variable assignment */
+		this->op=new operands(T_FLOATVAR);
+		this->op->generateBox(scope);
+		output_cpp << this->op->boxName() << "= const_cast<double>(" 
+			<< l->boxName() << ");\n";
 		/* TODO:  Check for divide by zero error and modulo zero error */
 	case O_REMAINDER:
-		this->op=new operands(t);
+		if (t!=T_INTVAR) error(E_TYPE_MISMATCH);
+		this->op=new operands(T_INTVAR);
 		this->op->generateBox(scope);
 		output_cpp << this->op->boxName() << "=" << l->boxName() << "%" << r->boxName() << ";\n";
 		break;
@@ -239,22 +235,14 @@ operands *expression::evaluate()
 		output_cpp << this->op->boxName() << "=" << l->boxName() << "*" << r->boxName() << ";\n";
 		break;
 	case O_OR:
-		if (t!=T_INTVAR)
-		{
-			errorLevel=E_TYPE_MISMATCH;
-			exit(1);
-		}
-		this->op=new operands(t);
+		if (t!=T_INTVAR) error(E_TYPE_MISMATCH);
+		this->op=new operands(T_INTVAR);
 		this->op->generateBox(scope);
 		output_cpp << this->op->boxName() << "=" << l->boxName() << "|" << r->boxName() << ";\n";
 		break;
 	case O_AND:
-		if (t!=T_INTVAR)
-		{
-			errorLevel=E_TYPE_MISMATCH;
-			exit(1);
-		}
-		this->op=new operands(t);
+		if (t!=T_INTVAR) error(E_TYPE_MISMATCH);
+		this->op=new operands(T_INTVAR);
 		this->op->generateBox(scope);
 		output_cpp << this->op->boxName() << "=" << l->boxName() << "&" << r->boxName() << ";\n";
 		break;
@@ -349,7 +337,7 @@ expression::~expression()
 /* variable definitions */
 variable::variable(ostream &scope, string &name, enum TYPES t):operands(t)
 {
-	this->generateBox(scope);
+	this->generateBox(scope); /*TODO:  FINISH THIS*/
 }
 
 variable *variable::getOrCreateVarName(string &name, enum TYPES t)
@@ -359,8 +347,10 @@ variable *variable::getOrCreateVarName(string &name, enum TYPES t)
 		return fn::getOrCreateVar(t, name, false);
 	}
 	/* TODO: verify if type is compatible */
-	operands op=operands::getOrCreateGlobal(name);
-	return reinterpret_cast<variable *>op;
+	shared_ptr<operands>op=operands::getOrCreateGlobal(name);
+	shared_ptr<variable>v=new variable();
+	v->assignment(new expression(op));
+	return v;
 }
 
 void variable::assignment(expression *value)
@@ -372,25 +362,21 @@ void variable::assignment(expression *value)
 		case T_FLOATVAR:
 			if (t==T_INTVAR)
 			{
-				/* TODO: convert int to float */
+				output_cpp << this->boxName() << "="
+					<< "static_cast<double>("
+					<< op->boxName() << ");\n";
 			}
 			else
 			{
-				if (t!=T_FLOATVAR)
-				{
-					errorLevel=E_TYPE_MISMATCH;
-					exit(1);
-				}
+				if (t!=T_FLOATVAR) error(E_TYPE_MISMATCH);
 			}
+			output_cpp << this->boxName() << "="
+				<< op->boxName() << ";\n";
 			break;
 		default:
-			if (t!=this->getType())
-			{
-				errorLevel=E_TYPE_MISMATCH;
-				exit(1);
-			}
+			if (t!=this->getType()) error(E_TYPE_MISMATCH);
+			output_cpp << this->boxName() << "="
+				<< op->boxName() << ";\n";
 			break;
 	}
-	output_cpp << this->boxName() << "="
-		<< op->boxName() << ";\n";
 }
