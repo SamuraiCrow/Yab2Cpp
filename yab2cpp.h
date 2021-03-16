@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include <memory>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 
@@ -90,7 +92,7 @@ enum TYPES
 	T_FLOATCALL_ARRAY,
 	T_STRINGCALL_ARRAY,
 	T_VOIDCALL
-}
+};
 /* list of all kinds of other code structures */
 enum CODES
 {
@@ -194,6 +196,7 @@ enum OPERATORS
 
 /* global prototype */
 void error(enum COMPILE_ERRORS err);
+void logger(string s);
 
 /* internal states used by the parser */
 class operands
@@ -201,21 +204,23 @@ class operands
 	enum TYPES type;
 	unsigned int id;
 	static unsigned int nextID;
-	static unordered_map<string, operands *> globals;
+	static unordered_map<string, shared_ptr<operands>> globals;
 	static unordered_map<string, unsigned int> strConst;
+	/* private constructor for parameter passing only */
+	explicit operands(unsigned int id, enum TYPES t);
 public:
 	enum TYPES getType() const {return type;}
 	unsigned int getID() const {return id;}
 
-	static operands *findGlobal(string &s);
-	static void dumpVars(ostream &out);
-	static unsigned int getOrCreateStr(string &s);
-	static operands *createConst(string &s, enum TYPES t);
-	static operands *getOrCreateGlobal(string &s, enum TYPES t);
+	static shared_ptr<operands>findGlobal(string &s);
+	static void dumpVars();
+	static shared_ptr<operands>getOrCreateStr(string s);
+	static shared_ptr<operands>createConst(string s, enum TYPES t);
+	static shared_ptr<operands>getOrCreateGlobal(string &s, enum TYPES t);
 
 	enum TYPES getSimpleVarType();
 	void generateBox(ostream &scope);
-	virtual string &boxName();
+	virtual string boxName();
 	enum TYPES coerceTypes();
 
 	explicit operands(enum TYPES t);
@@ -226,27 +231,27 @@ public:
 /* expression can be terminal or non-terminal */
 class expression
 {
-	operands *op;
-	expression *left;
-	expression *right;
+	shared_ptr<operands>op;
+	shared_ptr<expression>left;
+	shared_ptr<expression>right;
 	enum OPERATORS oper;
 public:
 	enum OPERATORS getOp() const {return oper;}
-	expression *getLeft() const {return left;}
-	expression *getRight() const {return right;}
+	shared_ptr<expression>getLeft() const {return left;}
+	shared_ptr<expression>getRight() const {return right;}
 
 	bool isBinOp();
-	operands *evaluate();
-	operands *stringEval();
+	shared_ptr<operands>evaluate();
+	shared_ptr<operands>stringEval(shared_ptr<operands>l, shared_ptr<operands>r);
 
 	/* r is NULL for unary operators */
-	expression(expression *l, enum OPERATORS o, expression *r=NULL)
+	expression(shared_ptr<expression>l, enum OPERATORS o, shared_ptr<expression>r=NULL)
 	{
 		this->left=l;
 		this->right=r;
 		this->oper=o;
 	}
-	expression(operands x)
+	expression(shared_ptr<operands>x)
 	{
 		op=x;
 		oper=O_TERM;
@@ -259,11 +264,11 @@ public:
 class codeType
 {
 	enum CODES type;
-	static list<codeType *> nesting;
+	static list<shared_ptr<codeType> >nesting;
 public:
 	enum CODES getType() const {return this->type;}
 
-	static codeType *getCurrent();
+	static shared_ptr<codeType> getCurrent();
 
 	virtual void close();
 	virtual void generateBreak()=0;
@@ -277,25 +282,27 @@ class label
 {
 	unsigned int id;
 	static unsigned int nextID;
-	static unordered_map<string, label *> lookup;
+	static unordered_map<string, shared_ptr<label> > lookup;
 public:
-	static dumpLabels(ostream &v);
+	static void dumpLabels();
 
 	unsigned int getID() const {return id;}
 
 	void generateJumpTo();
-	void generateOnNSkip(list<shared_ptr<label> >dest);
-	void generateOnNTo(expression *e);
-	void generateCondJump(expression *e);
+	/* pass generateOnNSkip as second paramater
+		to generateOnNTo or generateOnNSub */
+	unsigned int generateOnNSkip(list<shared_ptr<label> >&dest);
+	static void generateOnNTo(shared_ptr<expression>e, unsigned int skip);
+	void generateCondJump(shared_ptr<expression>e);
 	void generate();
 	
-	static label *find(string &s);
+	static shared_ptr<label>find(string &s);
 
 	label(){this->id = ++nextID;}
 	label(string &s)
 	{
 		label();
-		lookup[s]=this;
+		lookup[s]=shared_ptr<label>(this);
 	}
 
 	virtual ~label()
@@ -303,77 +310,82 @@ public:
 };
 
 /* if statement */
-class conditional:public codeType
+class ifStatement:public codeType
 {
-	label *redo; /* for continue command */
-	label *done; /* for break or after "then" condition */
-	label *chain; /* For elsif command */
+	shared_ptr<label>redo; /* for continue command */
+	shared_ptr<label>done; /* for break or after "then" condition */
+	shared_ptr<label>chain; /* For elsif command */
 public:
 	void generateContinue();
 	virtual void generateBreak() override;
-	void alternative(expression *e=NULL); /* enable else or elsif condition */
+	void alternative(shared_ptr<expression>e=NULL); /* enable else or elsif condition */
 	virtual void close() override; /* end if */
 
-	explicit conditional(expression *e);
-	virtual ~conditional();
+	explicit ifStatement(shared_ptr<expression>e);
+	virtual ~ifStatement()
+	{}
 };
 
 /* looping constructs */
 class repeatLoop:public codeType
 {
-	label *loopStart;
-	label *loopEnd;
+	shared_ptr<label>loopStart;
+	shared_ptr<label>loopEnd;
 public:
 	virtual void generateBreak() override;
-	virtual void close(expression *e) override;
+	virtual void close(shared_ptr<expression>e);
 
 	explicit repeatLoop();
-	virtual ~repeatLoop();
+	virtual ~repeatLoop()
+	{}
 };
 
 class doLoop:public codeType
 {
-	label *loopStart;
-	label *loopEnd;
+	shared_ptr<label>loopStart;
+	shared_ptr<label>loopEnd;
 public:
 	virtual void generateBreak() override;
 	virtual void close() override;
 
 	explicit doLoop();
-	virtual ~doLoop();
+	virtual ~doLoop()
+	{}
 };
 
 class whileLoop:public codeType
 {
-	label *loopContinue;
-	label *loopStart;
-	label *loopEnd;
-	expression *cond;
+	shared_ptr<label>loopContinue;
+	shared_ptr<label>loopStart;
+	shared_ptr<label>loopEnd;
+	shared_ptr<expression>cond;
 public:
 	virtual void generateBreak() override;
 	virtual void close() override;
 
-	explicit whileLoop(expression *e);
-	virtual ~whileLoop();
+	explicit whileLoop(shared_ptr<expression>e);
+	virtual ~whileLoop()
+	{}
 };
 
 class variable:public operands
 {
 	ostream &myScope;
 public:
-	static shared_ptr<variable>getOrCreateVarName(string &name, enum TYPES t);
+	static shared_ptr<variable>getOrCreateVar(string &name, enum TYPES t);
 
-	void assignment(expression *value);
+	void assignment(shared_ptr<expression>value);
 	explicit variable(ostream &scope, string &name, enum TYPES t);
-	virtual variable()
+	variable();
+	~variable()
 	{}
-}
+};
 
 class arrayType:public variable
 {
 	list<unsigned int> dimensions;
 public:
-	virtual string &boxName(list<unsigned int>indexes) override;
+	virtual string &boxName(list<unsigned int>indexes);
 
 	explicit arrayType(string &name, enum TYPES t, list<unsigned int>dim);/*:variable(scope, name, t);*/
 	virtual ~arrayType()
@@ -382,16 +394,16 @@ public:
 
 class forLoop:public codeType
 {
-	variable *var;
-	variable *startTemp;
-	variable *stopTemp;
+	shared_ptr<variable>var;
+	shared_ptr<variable>startTemp;
+	shared_ptr<variable>stopTemp;
 	whileLoop *infrastructure;
-	expression *step;
+	shared_ptr<expression>step;
 public:
 	virtual void generateBreak();
 	virtual void close();
 
-	explicit forLoop(variable *v, expression *start, expression *stop, expression *stepVal=NULL);
+	explicit forLoop(shared_ptr<variable>v, shared_ptr<expression>start, shared_ptr<expression>stop, shared_ptr<expression>stepVal=NULL);
 	virtual ~forLoop();
 };
 
@@ -408,22 +420,23 @@ class fn:codeType
 	shared_ptr<label>startAddr;
 	shared_ptr<label>ret;
 	/* private constructor used by generateGosub and generateOnNSub*/
-	fn(label *gosub);
+	fn(shared_ptr<label>gosub);
 public:
-	static variable *getOrCreateVar(enum TYPES t, string &s, bool stat);
+	static shared_ptr<variable>getOrCreateVar(enum TYPES t, string &s, bool stat);
 	static void dumpCallStack();
+	static bool isCallStackEmpty(){return callStack.begin()==callStack.end();}
 	static shared_ptr<fn>getCurrentSub();
 	static shared_ptr<fn>getSub(string &name);
 	static void generateGosub(shared_ptr<label> sub);
 	/* must be called after label::generateOnNSkip */
-	static void generateOnNSub(expression *e);
+	static void generateOnNSub(shared_ptr<expression>e, unsigned int skip);
 
 	unsigned int getID() const {return this->id;}
-	int getNumParams() const {return this->params.size;}
+	int getNumParams() const {return this->params.size();}
 	void addParameter(shared_ptr<variable>);
 
-	operands *generateCall(string &name, list<shared_ptr<operands> >&paramList);
-	operands *generateReturn(expression *expr);
+	shared_ptr<operands>generateCall(string &name, list<shared_ptr<operands> >paramList);
+	shared_ptr<operands>generateReturn(shared_ptr<expression>expr);
 	void generateReturn();
 	virtual void generateBreak();
 	virtual void close();
@@ -436,15 +449,15 @@ public:
 /* The next two structures are used to implement the PRINT statement. */
 class printSegments
 {
-	expression *cargo;
+	shared_ptr<expression>cargo;
 	enum SEPARATORS kind;
 public:
-	printSegments(expression *e, enum SEPARATORS k)
+	printSegments(shared_ptr<expression>e, enum SEPARATORS k)
 	{
 		this->cargo=e;
 		this->kind=k;
 	}
-	printSegments(expression *e) {printSegments(e, S_LINEFEED);}
+	printSegments(shared_ptr<expression>e) {printSegments(e, S_LINEFEED);}
 	printSegments() {printSegments(NULL);}
 	virtual ~printSegments()
 	{}
@@ -452,7 +465,7 @@ public:
 
 struct printStatement
 {
-	list<printSegments *> segments;
+	list<shared_ptr<printSegments> >segments;
 };
 
 #endif

@@ -22,9 +22,10 @@ ofstream logfile;
 ofstream varNames;
 
 /* private prototypes */
-void helpText(string &);
+void helpText(string);
+void setup();
+void compile();
 void shutDown();
-void logger(string &);
 
 /* process command line parameters */
 int main(int argc, char *argv[])
@@ -98,29 +99,35 @@ void setUp()
 	if (mode & COMPILE)
 	{
 		/* compile mode */
-		output_cpp=new ofstream("build/output.cpp");
-		funcs_h=new ofstream ("functions.h");
-		consts_h=new ofstream("consts.h");
-		heap_h=new ofstream("heap.h");
+		output_cpp.open("output/output.cpp");
+		funcs_h.open("output/functions.h");
+		consts_h.open("output/consts.h");
+		heap_h.open("output/heap.h");
 		output_cpp << "#include <runtime.h>\n#include \"consts.h\"\n"
 			<< "#include \"heap.h\"\n#include \"functions.h\"\n"
 			<< "unsigned int state=start;\nint run(){\nwhile (state>=start){\n"
 			<< "switch(state){\ncase start:" << endl;
 		if (mode & DEBUG)
 		{
-			varNames=new ofstream("varnames.txt");
+			varNames.open("varnames.txt");
 		}
 	}
 	if (mode & DUMP)
 	{
 		/* dump identifier mode */
-		logfile=fopen("parse.log","w");
+		logfile.open("parse.log");
 		logger("Setup complete.");
 	}
 }
 
+void error(enum COMPILE_ERRORS e)
+{
+	errorLevel=e;
+	exit(1);
+}
+
 /* write a note in the logfile */
-void logger(string &contents)
+void logger(string s)
 {
 	unsigned int count;
 	if (mode & DEBUG)
@@ -131,14 +138,14 @@ void logger(string &contents)
 			logfile << '\t';
 			--count;
 		}
-		logfile << contents << endl;
+		logfile << s << endl;
 	}
 }
 
 /* shutdown the compiler and exit */
 void shutDown()
 {
-	if  (errorLevel != E_OK) cerr << "\nERROR: " << COMPILEERRORNAMES[errorLevel] << "\n\n" << endl;
+	if  (errorLevel != E_OK) cerr << "\nERROR: " << COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
 	if (fn::isCallStackEmpty())
 	{
 		logger("Stack was empty");
@@ -146,26 +153,22 @@ void shutDown()
 	else
 	{
 		logger("Dumping stack.");
-		if (mode & DUMP && logfile != NULL)
+		if (mode & DUMP && (logfile))
 		{
-			fn::dumpCallStack(logfile);
+			fn::dumpCallStack();
 		}
 	}
 	operands::dumpVars();
 	label::dumpLabels();
 	output_cpp << "}\n}return state;\n}"<< endl;
-	}
 }
 
 /* open files and compile */
 void compile()
 {
 	setUp();
-		
-	/* parse */
-	ctx = mb_create(NULL);
-	while(mb_parse(ctx, NULL)){logger("done");}
-	mb_destroy(ctx);
+
+
 
 	shutDown();
 }

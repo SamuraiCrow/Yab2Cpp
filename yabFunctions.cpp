@@ -8,25 +8,27 @@
 */
 #include "yab2cpp.h"
 
+class label;
+
 /* function definitions */
-fn *fn::getCurrentSub()
+shared_ptr<fn>fn::getCurrentSub()
 {
-	return callStack.back;
+	return callStack.back();
 }
 
-void fn::generateOnNSub(expression *e)
+void fn::generateOnNSub(shared_ptr<expression>e, unsigned int skip)
 {
-	shared_ptr<label>r=new label();
-	shared_ptr<fn> self=new fn(r);
+	shared_ptr<label>r=shared_ptr<label>(new label());
+	shared_ptr<fn> self=shared_ptr<fn>(new fn(r));
 	fn::callStack.push_back(self);
-	label::generateOnNTo(e);
+	label::generateOnNTo(e, skip);
 	r->generate();
 }
 
 void fn::generateGosub(shared_ptr<label> sub)
 {
-	shared_ptr<label>r=new label();
-	shared_ptr<fn> self=new fn(r);
+	shared_ptr<label>r=shared_ptr<label>(new label());
+	shared_ptr<fn> self=shared_ptr<fn>(new fn(r));
 	fn::callStack.push_back(self);
 	sub->generateJumpTo();
 	r->generate();
@@ -39,50 +41,79 @@ fn::fn(shared_ptr<label>gosub):codeType(T_GOSUB)
 
 shared_ptr<fn> fn::getSub(string &name)
 {
-	auto iter=fn::functions.find(name)
+	auto iter=fn::functions.find(name);
 	if(iter==fn::functions.end()) return NULL;
 	return iter->second;
 }
 
-operands *fn::generateCall(string &name, list<shared_ptr<operands> >&paramList)
+shared_ptr<operands>fn::generateCall(string &name,
+	list<shared_ptr<operands> >paramList)
 {
 	auto v=params.begin();
 	shared_ptr<operands>current;
 	shared_ptr<fn>g=fn::getSub(name);
 	if (g==NULL)
 	{
-		errorLevel=E_SUBROUTINE_NOT_FOUND;
-		exit(1);
+		error(E_SUBROUTINE_NOT_FOUND);
 	}
 	if (paramList.size()>params.size())
 	{
-		errorLevel=E_TOO_MANY_PARAMETERS;
-		exit(1);
+		error(E_TOO_MANY_PARAMETERS);
 	}
-	output_cpp << "struct *f" << /* TODO: finish this */ 
-		<< "= new struct f" << g->getID();
+	/* TODO CHECK THIS */
+	output_cpp << "struct f" << g->getID()
+		<< "*sub" << this->getID()
+		<< "= new struct f" << g->getID()
+		<< "();\n";
 	while(paramList.size()>0)
 	{
-		current=paramList.front;
+		current= paramList.front();
 		paramList.pop_front();
-		if(current->getSimpleVarType()!=*v->getType())
+		if(current->getSimpleVarType()!=(*v)->getType())
 		{
-			errorLevel=E_TYPE_MISMATCH;
-			exit(1);
+			error(E_TYPE_MISMATCH);
 		}
-		*v->assignment(new expression(current));
+		(*v)->assignment(shared_ptr<expression>(
+			new expression(current)));
 		++v;
 	}
-
+	/* pad remaining unassigned variables with empty values */
+	while (v!=params.end())
+	{
+		switch ((*v)->getType())
+		{
+			case T_FLOATVAR:
+				(*v)->assignment(shared_ptr<expression>(
+					new expression(
+						operands::createConst("0.0", T_FLOAT)
+					)));
+				break;
+			case T_INTVAR:
+				(*v)->assignment(shared_ptr<expression>(
+					new expression(
+						operands::createConst("0", T_INT)
+					)));
+				break;
+			case T_STRINGVAR:
+				(*v)->assignment(shared_ptr<expression>(
+					new expression(
+						operands::getOrCreateStr(string("")
+					))));
+			default:
+				error(E_TYPE_MISMATCH);
+		}
+		++v;
+	}
 	return g->/*TODO FINISH THIS*/
 }
 
 void fn::generateReturn()
 {
-	shared_ptr<fn>c=fn::getCurrent();
+	shared_ptr<fn>c=getCurrentSub();
 	switch(c->getType())
 	{
 		case T_UNKNOWNFUNC:
+			/* set return type to NONE */
 			this->kind=T_NONE;
 			/*fallthrough*/
 		case T_GOSUB:
@@ -95,9 +126,9 @@ void fn::generateReturn()
 	}
 }
 
-operands *fn::generateReturn(expression *expr)
+shared_ptr<operands>fn::generateReturn(shared_ptr<expression>expr)
 {
-	operands *out=expr->evaluate();
+	shared_ptr<operands>out=expr->evaluate();
 	this->kind=out->getSimpleVarType();
 	this->ret->generateJumpTo();
 	fn::callStack.pop_back();
@@ -153,7 +184,7 @@ void fn::close()
 		(t==T_UNKNOWNFUNC||t==T_VOIDFUNC))
 	{
 		/* generate a typeless return */
-		this->generateReturn()
+		this->generateReturn();
 	}
 	funcs_h << "};\n";
 	fn::locals.clear();
@@ -165,10 +196,10 @@ void fn::close()
 fn::fn(string &s, enum CODES t):codeType(t)
 {
 	if (!scopeGlobal) error(E_END_FUNCTION);
-	if (fn::functions->find(s)!=fn::functions.end()) error(E_DUPLICATE_SYMBOL);
+	if (fn::functions.find(s)!=fn::functions.end()) error(E_DUPLICATE_SYMBOL);
 	this->id= ++nextID;
 	funcs_h << "struct f" << this->id <<"\n{\n";
-	this->ret=new label();
+	this->ret=shared_ptr<label>(new label());
 	fn::functions[s]=this;
 	scopeGlobal=false;
 }
