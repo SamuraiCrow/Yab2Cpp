@@ -115,7 +115,7 @@ void ifStatement::generateContinue()
 	redo->generateJumpTo();
 }
 
-void ifStatement::alternative(shared_ptr<expression>e=NULL)
+void ifStatement::alternative(shared_ptr<expression>e)
 {
 	done->generateJumpTo();
 	this->chain->generate();
@@ -201,7 +201,7 @@ void whileLoop::close()
 
 forLoop::forLoop(shared_ptr<variable>v,
 	shared_ptr<expression>start, shared_ptr<expression>stop,
-	shared_ptr<expression>stepVal=NULL):codeType(T_FORLOOP)
+	shared_ptr<expression>stepVal):codeType(T_FORLOOP)
 {
 	/*v=start;
 	stopTemp=stop;*/
@@ -209,30 +209,30 @@ forLoop::forLoop(shared_ptr<variable>v,
 	stopTemp->assignment(stop);
 	/* if (v<stopTemp) */
 	shared_ptr<ifStatement>c=shared_ptr<ifStatement>(new ifStatement(
-		shared_ptr<expression>(new expression(shared_ptr<expression>(new expression(v)),
-		O_LESS,	shared_ptr<expression>(new expression(stopTemp))))));
+		shared_ptr<expression>(new expression(shared_ptr<expression>(new expression(v.get())),
+		O_LESS,	shared_ptr<expression>(new expression(stopTemp.get()))))));
 	/* startTemp=v;*/
-	startTemp->assignment(shared_ptr<expression>(new expression(v)));
+	startTemp->assignment(shared_ptr<expression>(new expression(v.get())));
 	/* else */
 	c->alternative();
 	/* startTemp=stopTemp;
 	stopTemp=v;*/
-	startTemp->assignment(shared_ptr<expression>(new expression(stopTemp)));
-	stopTemp->assignment(shared_ptr<expression>(new expression(v)));
+	startTemp->assignment(shared_ptr<expression>(new expression(stopTemp.get())));
+	stopTemp->assignment(shared_ptr<expression>(new expression(v.get())));
 	/* endif */
 	c->close();
 	/* while (v<=stopTemp && v>=startTemp) */
 	shared_ptr<expression>stopper1=shared_ptr<expression>(new expression(
-		shared_ptr<expression>(new expression(v)), O_LESS_EQUAL, 
-		shared_ptr<expression>(new expression(stopTemp))));
+		shared_ptr<expression>(new expression(v.get())), O_LESS_EQUAL, 
+		shared_ptr<expression>(new expression(stopTemp.get()))));
 	shared_ptr<expression>stopper2=shared_ptr<expression>(new expression(
-		shared_ptr<expression>(new expression(v)), O_GREATER_EQUAL, 
-		shared_ptr<expression>(new expression(startTemp))));
+		shared_ptr<expression>(new expression(v.get())), O_GREATER_EQUAL, 
+		shared_ptr<expression>(new expression(startTemp.get()))));
 	shared_ptr<expression>stopper=shared_ptr<expression>(new expression(
 		stopper1, O_AND, stopper2));
 	this->infrastructure=new whileLoop(shared_ptr<expression>(new expression(
 		stopper, O_UNEQUAL, shared_ptr<expression>(new expression(
-		operands::createConst(string("0"), T_INT))))));
+		new constOp("0", T_INT))))));
 	if (stepVal)
 	{
 		step=stepVal;
@@ -240,7 +240,7 @@ forLoop::forLoop(shared_ptr<variable>v,
 	else
 	{
 		/* if not present "step" is assumed to be 1 */
-		step=shared_ptr<expression>(new expression(operands::createConst("1", T_INT)));
+		step=shared_ptr<expression>(new expression(new constOp("1", T_INT)));
 	}
 }
 
@@ -253,7 +253,7 @@ void forLoop::close()
 {
 	/* var=var+step; */
 	shared_ptr<expression>stepper=shared_ptr<expression>(new expression(
-		shared_ptr<expression>(new expression(var)), O_PLUS, step));
+		shared_ptr<expression>(new expression(var.get())), O_PLUS, step));
 	var->assignment(stepper);
 	infrastructure->close();
 }

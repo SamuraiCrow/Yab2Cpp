@@ -5,16 +5,16 @@
 
 CC=g++
 LD=g++
+
 #release build
 #FLAGS=-c -Os -std=c++11
-#LDFLAGS=
+#LDFLAGS=LDFLAGS=-std=c++11
 
 #debug build
 FLAGS=-c -g -Og -std=c++11
-LDFLAGS=
+LDFLAGS=-std=c++11
 
 AR=ar r
-LD=g++
 
 default: yab2cpp
 
@@ -30,11 +30,13 @@ yabFunctions.o: yabFunctions.cpp yab2cpp.h
 yab2cpp.o: yab2cpp.cpp yab2cpp.h
 	$(CC) $(FLAGS) -o yab2cpp.o yab2cpp.cpp
 
-BASIC_framework.a: yabDataStructures.o yabCodeStructures.o yabFunctions.o
-	$(AR) yabDataStructures.o yabCodeStructures.o yabFunctions.o
+#BASIC_framework.a: yabDataStructures.o yabCodeStructures.o yabFunctions.o
+#	$(AR) BASIC_framework.a yabDataStructures.o yabCodeStructures.o yabFunctions.o
 
-yab2cpp: BASIC_framework.a yab2cpp.o
-	$(LD) $(LDFLAGS) -o buildyab2cpp yab2cpp.o -lBASIC_framework
+#yab2cpp: BASIC_framework.a yab2cpp.o
+yab2cpp: yab2cpp.o yabCodeStructures.o yabDataStructures.o yabFunctions.o
+	$(LD) $(LDFLAGS) -o yab2cpp yab2cpp.o yabCodeStructures.o yabDataStructures.o yabFunctions.o
+#BASIC_framework.a
 
 clean:
 	rm -f *.o yab2cpp BASIC_framework.a

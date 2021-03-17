@@ -55,22 +55,6 @@ extern unsigned int mode;
 extern unsigned int indentLevel;
 extern bool scopeGlobal;
 
-/* These correspond to the enum COMPILE_ERRORS. */
-const char *COMPILE_ERROR_NAMES[]={
-	"no error",
-	"incorrect syntax",
-	"wrong type",
-	"failed allocation",
-	"stack underflow",
-	"internal compiler error",
-	"duplicated label",
-	"previous subroutine didn't end",
-	"value returned from gosub call",
-	"undefined subroutine name",
-	"too many parameters in function call",
-	"value cannot be assigned"
-};
-
 /* flags used internally by the compiler
 	(must be powers of 2) */
 #define COMPILE 1
@@ -117,44 +101,6 @@ enum CODES
 	T_UNKNOWNFUNC
 };
 
-/* These correspond to the types of enum TYPES. */
-const string TYPENAMES[]={
-	"unknown",
-	"none",
-	"string constant",
-	"integer constant",
-	"floating point constant",
-	"string variable",
-	"integer variable",
-	"floating point variable",
-	"string array or function",
-	"integer array or function",
-	"floating point array or function",
-	"string array or function",
-	"function"
-};
-
-const string CODETYPES[]={
-	"print sequence",
-	"print segment",
-	"while loop",
-	"for loop",
-	"repeat loop",
-	"do loop",
-	"if statement",
-	"procedure statement",
-	"function statement",
-	"assignment",
-	"label",
-	"parameter list or array index",
-	"data item",
-	"function returning string",
-	"function returning floating point",
-	"function returning integer",
-	"function returning nothing",
-	"function"
-};
-
 typedef union
 {
 	double d;
@@ -168,6 +114,14 @@ enum SEPARATORS
 	S_COMMA,
 	S_SEMICOLON,
 	S_LINEFEED
+};
+
+enum SCOPES
+{
+	S_UNKNOWN,
+	S_LOCAL,
+	S_STATIC,
+	S_GLOBAL
 };
 
 enum OPERATORS
@@ -199,32 +153,60 @@ void error(enum COMPILE_ERRORS err);
 void logger(string s);
 
 /* internal states used by the parser */
+class scope:public ofstream
+{
+	enum SCOPES myscope;
+public:
+	ofstream &operator<<(ostream &in);
+	enum SCOPES getScope() const {return myscope;}
+
+	scope(enum SCOPES s){myscope=s;}
+	~scope()
+	{}
+};
+
 class operands
 {
 	enum TYPES type;
 	unsigned int id;
 	static unsigned int nextID;
-	static unordered_map<string, shared_ptr<operands>> globals;
-	static unordered_map<string, unsigned int> strConst;
 	/* private constructor for parameter passing only */
 	explicit operands(unsigned int id, enum TYPES t);
+protected:
+	static unordered_map<string, shared_ptr<operands>> globals;
 public:
 	enum TYPES getType() const {return type;}
 	unsigned int getID() const {return id;}
 
 	static shared_ptr<operands>findGlobal(string &s);
 	static void dumpVars();
-	static shared_ptr<operands>getOrCreateStr(string s);
-	static shared_ptr<operands>createConst(string s, enum TYPES t);
 	static shared_ptr<operands>getOrCreateGlobal(string &s, enum TYPES t);
 
 	enum TYPES getSimpleVarType();
-	void generateBox(ostream &scope);
+	void generateBox(enum SCOPES s);
 	virtual string boxName();
 	enum TYPES coerceTypes();
 
 	explicit operands(enum TYPES t);
 	virtual ~operands()
+	{}
+};
+
+class constOp:public operands
+{
+	/* box is defined once in the constructor */
+	string box;
+	static unordered_map<string, unsigned int> strConst;
+
+	/* const for id that exists already */
+	void processConst(unsigned int i);
+	/* const that must be defined still */
+	void processConst(const string &s);
+public:
+	virtual string boxName(){return box;}
+
+	constOp(const string &s, enum TYPES t);
+	~constOp()
 	{}
 };
 
@@ -251,9 +233,9 @@ public:
 		this->right=r;
 		this->oper=o;
 	}
-	expression(shared_ptr<operands>x)
+	expression(operands *x)
 	{
-		op=x;
+		op=shared_ptr<operands>(x);
 		oper=O_TERM;
 	}
 	/*TODO: Recycle temporary variables when not in debug mode*/
@@ -370,12 +352,12 @@ public:
 
 class variable:public operands
 {
-	ostream &myScope;
+	enum SCOPES myScope;
 public:
 	static shared_ptr<variable>getOrCreateVar(string &name, enum TYPES t);
 
 	void assignment(shared_ptr<expression>value);
-	explicit variable(ostream &scope, string &name, enum TYPES t);
+	explicit variable(enum SCOPES s, string &name, enum TYPES t);
 	variable();
 	~variable()
 	{}
@@ -409,18 +391,20 @@ public:
 
 class fn:codeType
 {
-	static unordered_map<string, shared_ptr<variable> >locals;
-	static unordered_map<string, shared_ptr<variable> >statics;
+	friend variable;
 	static unordered_map<string, shared_ptr<fn> >functions;
 	static list<shared_ptr<fn> > callStack;
 	static unsigned int nextID;
 	list<shared_ptr<variable> >params;
 	unsigned int id;
 	enum TYPES kind;
+	shared_ptr<operands>rc;
 	shared_ptr<label>startAddr;
 	shared_ptr<label>ret;
 	/* private constructor used by generateGosub and generateOnNSub*/
 	fn(shared_ptr<label>gosub);
+	static unordered_map<string, shared_ptr<variable> >locals;
+	static unordered_map<string, shared_ptr<variable> >statics;
 public:
 	static shared_ptr<variable>getOrCreateVar(enum TYPES t, string &s, bool stat);
 	static void dumpCallStack();
@@ -436,12 +420,12 @@ public:
 	void addParameter(shared_ptr<variable>);
 
 	shared_ptr<operands>generateCall(string &name, list<shared_ptr<operands> >paramList);
-	shared_ptr<operands>generateReturn(shared_ptr<expression>expr);
+	void generateReturn(shared_ptr<expression>expr);
 	void generateReturn();
 	virtual void generateBreak();
 	virtual void close();
 
-	fn(string &name, enum CODES t);
+	fn(string &name, enum CODES t, shared_ptr<operands>returnCode=NULL);
 	virtual ~fn()
 	{}
 };

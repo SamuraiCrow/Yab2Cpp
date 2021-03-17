@@ -65,6 +65,8 @@ shared_ptr<operands>fn::generateCall(string &name,
 		<< "*sub" << this->getID()
 		<< "= new struct f" << g->getID()
 		<< "();\n";
+
+	/* TODO Make parameter processing a separate function */
 	while(paramList.size()>0)
 	{
 		current= paramList.front();
@@ -74,7 +76,7 @@ shared_ptr<operands>fn::generateCall(string &name,
 			error(E_TYPE_MISMATCH);
 		}
 		(*v)->assignment(shared_ptr<expression>(
-			new expression(current)));
+			new expression(current.get())));
 		++v;
 	}
 	/* pad remaining unassigned variables with empty values */
@@ -85,26 +87,28 @@ shared_ptr<operands>fn::generateCall(string &name,
 			case T_FLOATVAR:
 				(*v)->assignment(shared_ptr<expression>(
 					new expression(
-						operands::createConst("0.0", T_FLOAT)
+						new constOp("0.0", T_FLOAT)
 					)));
 				break;
 			case T_INTVAR:
 				(*v)->assignment(shared_ptr<expression>(
 					new expression(
-						operands::createConst("0", T_INT)
+						new constOp("0", T_INT)
 					)));
 				break;
 			case T_STRINGVAR:
 				(*v)->assignment(shared_ptr<expression>(
 					new expression(
-						operands::getOrCreateStr(string("")
-					))));
+						new constOp("", T_STRING)
+					)));
 			default:
-				error(E_TYPE_MISMATCH);
+				error(E_INTERNAL);
 		}
 		++v;
 	}
-	return g->/*TODO FINISH THIS*/
+	g->startAddr->generateJumpTo();
+	g->ret->generate();
+	return g->rc;
 }
 
 void fn::generateReturn()
@@ -126,47 +130,29 @@ void fn::generateReturn()
 	}
 }
 
-shared_ptr<operands>fn::generateReturn(shared_ptr<expression>expr)
+void fn::generateReturn(shared_ptr<expression>expr)
 {
-	shared_ptr<operands>out=expr->evaluate();
-	this->kind=out->getSimpleVarType();
+	this->rc=expr->evaluate();
+	this->kind=rc->getSimpleVarType();
 	this->ret->generateJumpTo();
 	fn::callStack.pop_back();
 	switch (this->getType())
 	{
 		case T_UNKNOWNFUNC:
-			return out;
+			return;
 		case T_STRINGFUNC:
-			if (kind!=T_STRINGVAR)
-			{
-				errorLevel=E_TYPE_MISMATCH;
-				exit(1);
-			}
-			return out;
+			if (kind!=T_STRINGVAR) error(E_TYPE_MISMATCH);
+			return;
 		case T_INTFUNC:
-			if (kind!=T_INTVAR&&kind!=T_FLOATVAR)
-			{
-				errorLevel=E_TYPE_MISMATCH;
-				exit(1);
-			}
-			return out;
+			if (kind!=T_INTVAR&&kind!=T_FLOATVAR) error(E_TYPE_MISMATCH);
+			return;
 		case T_FLOATFUNC:
-			if(kind!=T_FLOATVAR)
-			{
-				errorLevel=E_TYPE_MISMATCH;
-				exit(1);
-			}
-			return out;
+			if(kind!=T_FLOATVAR) error(E_TYPE_MISMATCH);
+			return;
 		case T_GOSUB:
-			{
-				errorLevel=E_GOSUB_CANNOT_RETURN_VALUE;
-				exit(1);
-			}
+			error(E_GOSUB_CANNOT_RETURN_VALUE);
 		default:
-			{
-				errorLevel=E_BAD_SYNTAX;
-				exit(1);
-			}
+			error(E_BAD_SYNTAX);
 	}
 }
 
@@ -193,13 +179,24 @@ void fn::close()
 	scopeGlobal=true;
 }
 
-fn::fn(string &s, enum CODES t):codeType(t)
+fn::fn(string &s, enum CODES t, shared_ptr<operands>returnCode):codeType(t)
 {
+	/*check for nesting error */
 	if (!scopeGlobal) error(E_END_FUNCTION);
+	/*check if this function name is already used*/
 	if (fn::functions.find(s)!=fn::functions.end()) error(E_DUPLICATE_SYMBOL);
 	this->id= ++nextID;
+	/*define storage for locals*/
 	funcs_h << "struct f" << this->id <<"\n{\n";
+	/*define label space for return*/
 	this->ret=shared_ptr<label>(new label());
-	fn::functions[s]=this;
+	/*allocate function name*/
+	fn::functions[s]=shared_ptr<fn>(this);
+	/* initiate local scope */
 	scopeGlobal=false;
+	/*keep track of where the return code will be sent to*/
+	this->rc=returnCode;
+	/*allocate and generate start address label*/
+	this->startAddr=shared_ptr<label>(new label());
+	startAddr->generate();
 }

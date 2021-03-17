@@ -8,6 +8,60 @@
 */
 #include "yab2cpp.h"
 
+/* These correspond to the enum COMPILE_ERRORS. */
+const char *COMPILE_ERROR_NAMES[]={
+	"no error",
+	"incorrect syntax",
+	"wrong type",
+	"failed allocation",
+	"stack underflow",
+	"internal compiler error",
+	"duplicated label",
+	"previous subroutine didn't end",
+	"value returned from gosub call",
+	"undefined subroutine name",
+	"too many parameters in function call",
+	"value cannot be assigned"
+};
+
+/* These correspond to the types of enum TYPES. */
+const string TYPENAMES[]={
+	"unknown",
+	"none",
+	"string constant",
+	"integer constant",
+	"floating point constant",
+	"string variable",
+	"integer variable",
+	"floating point variable",
+	"string array or function",
+	"integer array or function",
+	"floating point array or function",
+	"string array or function",
+	"function"
+};
+
+const string CODETYPES[]={
+	"print sequence",
+	"print segment",
+	"while loop",
+	"for loop",
+	"repeat loop",
+	"do loop",
+	"if statement",
+	"procedure statement",
+	"function statement",
+	"assignment",
+	"label",
+	"parameter list or array index",
+	"data item",
+	"function returning string",
+	"function returning floating point",
+	"function returning integer",
+	"function returning nothing",
+	"function"
+};
+
 enum COMPILE_ERRORS errorLevel=E_OK;
 unsigned int mode=0;
 unsigned int indentLevel=0;

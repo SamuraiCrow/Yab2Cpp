@@ -5,3 +5,4 @@ bison.output
 yab
 *.o
 *.so
+.vscode/*
