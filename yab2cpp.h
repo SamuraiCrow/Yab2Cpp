@@ -149,7 +149,7 @@ enum OPERATORS
 };
 
 /* global prototype */
-void error(enum COMPILE_ERRORS err);
+[[noreturn]] void error(enum COMPILE_ERRORS err);
 void logger(string s);
 
 /* internal states used by the parser */

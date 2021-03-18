@@ -1,42 +1,40 @@
-#Makefile for yab2cpp
-#by Samuel D. Crow
+CC := clang++
+CFLAGS := -Wall
+CFLAGS += -std=c++11
+CFLAGS += -O0
+LFLAGS := 
 
-#presently architecture-neutral
+ODIR := build
 
-CC=g++
-LD=g++
+YABCODESTRUCTURES_SOURCE_DEPS := yabCodeStructures.cpp yab2cpp.h yab2cpp.cpp
+YAB2CPP_SOURCE_DEPS := yab2cpp.cpp yab2cpp.h
+YABDATASTRUCTURES_SOURCE_DEPS := yabDataStructures.cpp yab2cpp.h yab2cpp.cpp
+YABFUNCTIONS_SOURCE_DEPS := yabFunctions.cpp yab2cpp.h yab2cpp.cpp
 
-#release build
-#FLAGS=-c -Os -std=c++11
-#LDFLAGS=LDFLAGS=-std=c++11
+all: binaries
 
-#debug build
-FLAGS=-c -g -Og -std=c++11
-LDFLAGS=-std=c++11
+$(ODIR):
+	@mkdir $(ODIR)
 
-AR=ar r
+binaries: bin_yab2cpp 
 
-default: yab2cpp
+YAB2CPP_OBJECT_DEPS := $(ODIR)/yab2cpp.o $(ODIR)/yabCodeStructures.o $(ODIR)/yabDataStructures.o $(ODIR)/yabFunctions.o
 
-yabDataStructures.o: yabDataStructures.cpp yab2cpp.h
-	$(CC) $(FLAGS) -o yabDataStructures.o yabDataStructures.cpp
+bin_yab2cpp: $(ODIR) $(YAB2CPP_OBJECT_DEPS)
+	clang++ -v -o yab2cpp $(ODIR)/yabCodeStructures.o $(ODIR)/yabFunctions.o $(ODIR)/yabDataStructures.o $(ODIR)/yab2cpp.o
 
-yabCodeStructures.o: yabCodeStructures.cpp yab2cpp.h
-	$(CC) $(FLAGS) -o yabCodeStructures.o yabCodeStructures.cpp
+$(ODIR)/yabCodeStructures.o: $(ODIR) $(YABCODESTRUCTURES_SOURCE_DEPS)
+	$(CC) -c $(CFLAGS) yabCodeStructures.cpp -o $(ODIR)/yabCodeStructures.o
 
-yabFunctions.o: yabFunctions.cpp yab2cpp.h
-	$(CC) $(FLAGS) -o yabFunctions.o yabFunctions.cpp
+$(ODIR)/yab2cpp.o: $(ODIR) $(YAB2CPP_SOURCE_DEPS)
+	$(CC) -c $(CFLAGS) yab2cpp.cpp -o $(ODIR)/yab2cpp.o
 
-yab2cpp.o: yab2cpp.cpp yab2cpp.h
-	$(CC) $(FLAGS) -o yab2cpp.o yab2cpp.cpp
+$(ODIR)/yabDataStructures.o: $(ODIR) $(YABDATASTRUCTURES_SOURCE_DEPS)
+	$(CC) -c $(CFLAGS) yabDataStructures.cpp -o $(ODIR)/yabDataStructures.o
 
-#BASIC_framework.a: yabDataStructures.o yabCodeStructures.o yabFunctions.o
-#	$(AR) BASIC_framework.a yabDataStructures.o yabCodeStructures.o yabFunctions.o
+$(ODIR)/yabFunctions.o: $(ODIR) $(YABFUNCTIONS_SOURCE_DEPS)
+	$(CC) -c $(CFLAGS) yabFunctions.cpp -o $(ODIR)/yabFunctions.o
 
-#yab2cpp: BASIC_framework.a yab2cpp.o
-yab2cpp: yab2cpp.o yabCodeStructures.o yabDataStructures.o yabFunctions.o
-	$(LD) $(LDFLAGS) -o yab2cpp yab2cpp.o yabCodeStructures.o yabDataStructures.o yabFunctions.o
-#BASIC_framework.a
-
+.PHONY: clean
 clean:
-	rm -f *.o yab2cpp BASIC_framework.a
+	rm -rf build/* yab2cpp 

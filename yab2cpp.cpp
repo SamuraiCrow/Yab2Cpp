@@ -76,7 +76,7 @@ ofstream logfile;
 ofstream varNames;
 
 /* private prototypes */
-void helpText(string);
+void helpText(const string);
 void setup();
 void compile();
 void shutDown();
@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 }
 
 /* print the help text to stdout */
-void helpText(string &commandname)
+void helpText(const string commandname)
 {
 	cout << commandname << "[-d|D|V|v|G] < filename.mb\n" <<
 		"Compiles filename.mb by default unless a flag is specified.\n" <<
@@ -174,7 +174,7 @@ void setUp()
 	}
 }
 
-void error(enum COMPILE_ERRORS e)
+[[noreturn]] void error(enum COMPILE_ERRORS e)
 {
 	errorLevel=e;
 	exit(1);

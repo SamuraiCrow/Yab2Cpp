@@ -50,11 +50,7 @@ void label::generateJumpTo()
 /* pass this as second parameter to generateOnNTo or generateOnNSub */
 unsigned int label::generateOnNSkip(list<shared_ptr<label> >&dest)
 {
-	if (dest.size()<2)
-	{
-		errorLevel=E_BAD_SYNTAX;
-		exit(1);
-	}
+	if (dest.size()<2)error(E_BAD_SYNTAX);
 	auto iter=dest.begin();
 	consts_h << "j" << this->getID() << "[]={" << *iter;
 	++iter;
@@ -130,12 +126,8 @@ void ifStatement::alternative(shared_ptr<expression>e)
 
 void ifStatement::close()
 {
-	if(this->chain)
-	{
-		/* elsif ended without else in between */
-		errorLevel=E_BAD_SYNTAX;
-		exit(1);
-	}
+	/* elsif ended without else in between */
+	if(this->chain)error(E_BAD_SYNTAX);
 	this->done->generate();
 }
 

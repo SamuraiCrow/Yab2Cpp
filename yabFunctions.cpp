@@ -125,8 +125,7 @@ void fn::generateReturn()
 			fn::callStack.pop_back();
 			break;
 		default:
-			errorLevel=E_TYPE_MISMATCH;
-			exit(1);
+			error(E_TYPE_MISMATCH);
 	}
 }
 
