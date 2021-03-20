@@ -6,3 +6,4 @@ yab
 *.o
 *.so
 .vscode/*
+yab2cpp
