@@ -8,11 +8,30 @@
 */
 #include "yab2cpp.h"
 
-class label;
+/* static initializers */
+unordered_map<string, shared_ptr<fn> > fn::functions;
+list<shared_ptr<fn> >fn::callStack;
+unsigned int fn::nextID;
 
 /* function definitions */
+void fn::dumpCallStack()
+{
+	auto i=callStack.rbegin();
+	if (i==callStack.rend())
+	{
+		logfile << "call stack was empty\n";
+		return;
+	}
+	do
+	{
+		logfile << (*i)->funcName << "\n";
+		++i;
+	} while(i!=callStack.rend());
+}
+
 shared_ptr<fn>fn::getCurrentSub()
 {
+	list<shared_ptr<fn> >callStack;
 	return callStack.back();
 }
 
@@ -36,6 +55,7 @@ void fn::generateGosub(shared_ptr<label> sub)
 
 fn::fn(shared_ptr<label>gosub):codeType(T_GOSUB)
 {
+	this->funcName="unnamed gosub";
 	this->ret=gosub;
 }
 
@@ -47,7 +67,7 @@ shared_ptr<fn> fn::getSub(string &name)
 }
 
 shared_ptr<operands>fn::generateCall(string &name,
-	list<shared_ptr<operands> >paramList)
+	list<shared_ptr<operands> >&paramList)
 {
 	auto v=params.begin();
 	shared_ptr<operands>current;
@@ -76,7 +96,7 @@ shared_ptr<operands>fn::generateCall(string &name,
 			error(E_TYPE_MISMATCH);
 		}
 		(*v)->assignment(shared_ptr<expression>(
-			new expression(current.get())));
+			new expression(current)));
 		++v;
 	}
 	/* pad remaining unassigned variables with empty values */
@@ -87,19 +107,19 @@ shared_ptr<operands>fn::generateCall(string &name,
 			case T_FLOATVAR:
 				(*v)->assignment(shared_ptr<expression>(
 					new expression(
-						new constOp("0.0", T_FLOAT)
+						shared_ptr<constOp>(new constOp("0.0", T_FLOAT))
 					)));
 				break;
 			case T_INTVAR:
 				(*v)->assignment(shared_ptr<expression>(
 					new expression(
-						new constOp("0", T_INT)
+						shared_ptr<constOp>(new constOp("0", T_INT))
 					)));
 				break;
 			case T_STRINGVAR:
 				(*v)->assignment(shared_ptr<expression>(
 					new expression(
-						new constOp("", T_STRING)
+						shared_ptr<constOp>(new constOp("", T_STRING))
 					)));
 			default:
 				error(E_INTERNAL);
@@ -172,8 +192,8 @@ void fn::close()
 		this->generateReturn();
 	}
 	funcs_h << "};\n";
-	fn::locals.clear();
-	fn::statics.clear();
+	locals.clear();
+	statics.clear();
 	this->params.clear();
 	scopeGlobal=true;
 }
@@ -184,6 +204,7 @@ fn::fn(string &s, enum CODES t, shared_ptr<operands>returnCode):codeType(t)
 	if (!scopeGlobal) error(E_END_FUNCTION);
 	/*check if this function name is already used*/
 	if (fn::functions.find(s)!=fn::functions.end()) error(E_DUPLICATE_SYMBOL);
+	this->funcName=s;
 	this->id= ++nextID;
 	/*define storage for locals*/
 	funcs_h << "struct f" << this->id <<"\n{\n";

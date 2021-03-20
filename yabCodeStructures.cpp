@@ -8,28 +8,22 @@
 */
 #include "yab2cpp.h"
 
+/* static initializers */
+unordered_map<string, shared_ptr<label> > label::lookup;
+unsigned int label::nextID;
+
 /* base class of all the code structure types */
 codeType::codeType(enum CODES t)
 {
-	nesting.push_back(shared_ptr<codeType>(this));
 	this->type=t;
-}
-
-shared_ptr<codeType> codeType::getCurrent()
-{
-	return nesting.back();
-}
-
-void codeType::close()
-{
-	nesting.pop_back();
 }
 
 /* label definitions and helper routines */
 shared_ptr<label>label::find(string &s)
 {
-	auto ret=lookup.find(s);
-	return(ret==lookup.end()?NULL:ret->second);
+	unordered_map<string, shared_ptr<label> >lookup;
+	auto ret=label::lookup.find(s);
+	return(ret==label::lookup.end()?NULL:ret->second);
 }
 
 void label::dumpLabels()
@@ -201,30 +195,30 @@ forLoop::forLoop(shared_ptr<variable>v,
 	stopTemp->assignment(stop);
 	/* if (v<stopTemp) */
 	shared_ptr<ifStatement>c=shared_ptr<ifStatement>(new ifStatement(
-		shared_ptr<expression>(new expression(shared_ptr<expression>(new expression(v.get())),
-		O_LESS,	shared_ptr<expression>(new expression(stopTemp.get()))))));
+		shared_ptr<expression>(new expression(shared_ptr<expression>(new expression(v)),
+		O_LESS,	shared_ptr<expression>(new expression(stopTemp))))));
 	/* startTemp=v;*/
-	startTemp->assignment(shared_ptr<expression>(new expression(v.get())));
+	startTemp->assignment(shared_ptr<expression>(new expression(v)));
 	/* else */
 	c->alternative();
 	/* startTemp=stopTemp;
 	stopTemp=v;*/
-	startTemp->assignment(shared_ptr<expression>(new expression(stopTemp.get())));
-	stopTemp->assignment(shared_ptr<expression>(new expression(v.get())));
+	startTemp->assignment(shared_ptr<expression>(new expression(stopTemp)));
+	stopTemp->assignment(shared_ptr<expression>(new expression(v)));
 	/* endif */
 	c->close();
 	/* while (v<=stopTemp && v>=startTemp) */
 	shared_ptr<expression>stopper1=shared_ptr<expression>(new expression(
-		shared_ptr<expression>(new expression(v.get())), O_LESS_EQUAL, 
-		shared_ptr<expression>(new expression(stopTemp.get()))));
+		shared_ptr<expression>(new expression(v)), O_LESS_EQUAL, 
+		shared_ptr<expression>(new expression(stopTemp))));
 	shared_ptr<expression>stopper2=shared_ptr<expression>(new expression(
-		shared_ptr<expression>(new expression(v.get())), O_GREATER_EQUAL, 
-		shared_ptr<expression>(new expression(startTemp.get()))));
+		shared_ptr<expression>(new expression(v)), O_GREATER_EQUAL, 
+		shared_ptr<expression>(new expression(startTemp))));
 	shared_ptr<expression>stopper=shared_ptr<expression>(new expression(
 		stopper1, O_AND, stopper2));
 	this->infrastructure=new whileLoop(shared_ptr<expression>(new expression(
 		stopper, O_UNEQUAL, shared_ptr<expression>(new expression(
-		new constOp("0", T_INT))))));
+		shared_ptr<constOp>(new constOp("0", T_INT)))))));
 	if (stepVal)
 	{
 		step=stepVal;
@@ -232,7 +226,8 @@ forLoop::forLoop(shared_ptr<variable>v,
 	else
 	{
 		/* if not present "step" is assumed to be 1 */
-		step=shared_ptr<expression>(new expression(new constOp("1", T_INT)));
+		step=shared_ptr<expression>(new expression(
+			shared_ptr<constOp>(new constOp("1", T_INT))));
 	}
 }
 
@@ -245,7 +240,7 @@ void forLoop::close()
 {
 	/* var=var+step; */
 	shared_ptr<expression>stepper=shared_ptr<expression>(new expression(
-		shared_ptr<expression>(new expression(var.get())), O_PLUS, step));
+		shared_ptr<expression>(new expression(var)), O_PLUS, step));
 	var->assignment(stepper);
 	infrastructure->close();
 }

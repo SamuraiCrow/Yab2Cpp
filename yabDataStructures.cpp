@@ -8,7 +8,10 @@
 */
 #include "yab2cpp.h"
 
+/* forward declaration and static initializers */
 class fn;
+unsigned int operands::nextID;
+unordered_map<string, unsigned int> constOp::strConst;
 
 /* scope methods */
 ofstream &scope::operator<<(ostream &in)
@@ -24,26 +27,6 @@ ofstream &scope::operator<<(ostream &in)
 }
 
 /* methods for operands */
-shared_ptr<operands>operands::findGlobal(string &s)
-{
-	auto iter=operands::globals.find(s);
-	if (iter==operands::globals.end())
-	{
-		return NULL;
-	}
-	return iter->second;
-}
-
-void operands::dumpVars()
-{
-	varNames << "Global Variables\n";
-	for(auto iter=globals.begin(); iter!=globals.end(); ++iter)
-	{
-		varNames << "variable " << iter->first << " has ID " << iter->second << "\n";
-	}
-	varNames << endl;
-}
-
 enum TYPES operands::getSimpleVarType()
 {
 	switch (this->getType())
@@ -96,16 +79,6 @@ void operands::generateBox(enum SCOPES s)
 	y << x;
 }
 
-shared_ptr<operands>operands::getOrCreateGlobal(string &s, enum TYPES t)
-{
-	auto op=globals.find(s);
-	if (op==globals.end())
-	{
-		return shared_ptr<variable>(new variable(S_GLOBAL, s, t));
-	}
-	return op->second;
-}
-
 string operands::boxName()
 {
 	ostringstream s;
@@ -143,6 +116,8 @@ void constOp::processConst( const string &s)
 /* constructor for constOp */
 constOp::constOp(const string &s, enum TYPES t):operands(t)
 {
+	/* make sure string folder is initialized */
+	unordered_map<string, shared_ptr<operands> >strConst;
 	switch (t)
 	{
 		case T_INT:
@@ -155,8 +130,8 @@ constOp::constOp(const string &s, enum TYPES t):operands(t)
 			break;
 		case T_STRING:
 			{
-				auto i=strConst.find(s);
-				if (i!=strConst.end())
+				auto i=constOp::strConst.find(s);
+				if (i!=constOp::strConst.end())
 				{
 					processConst((*i).second);
 				}
@@ -164,7 +139,7 @@ constOp::constOp(const string &s, enum TYPES t):operands(t)
 				{
 					consts_h << "const string ";
 					processConst(s);
-					strConst[s]=getID();
+					constOp::strConst[s]=getID();
 				}
 			}
 			break;
@@ -206,12 +181,12 @@ shared_ptr<operands>expression::evaluate()
 		enum TYPES rt=r->getSimpleVarType();
 		if (lt==T_INTVAR && rt==T_FLOATVAR)
 		{
-			l=shared_ptr<operands>((new expression(shared_ptr<expression>(new expression(l.get())), O_INT_TO_FLOAT))->evaluate());
+			l=shared_ptr<operands>((new expression(shared_ptr<expression>(new expression(l)), O_INT_TO_FLOAT))->evaluate());
 			lt=T_FLOATVAR;
 		}
 		if (lt==T_FLOATVAR && rt==T_INTVAR)
 		{
-			r=shared_ptr<operands>((new expression(shared_ptr<expression>(new expression(r.get())), O_INT_TO_FLOAT))->evaluate());
+			r=shared_ptr<operands>((new expression(shared_ptr<expression>(new expression(r)), O_INT_TO_FLOAT))->evaluate());
 			rt=T_FLOATVAR;
 		}
 		if (lt!=rt)error(E_TYPE_MISMATCH);
@@ -346,18 +321,18 @@ variable::variable(enum SCOPES s, string &name, enum TYPES t):operands(t)
 	switch (s)
 	{
 		case S_LOCAL:
-			if(fn::locals.find(name)!=fn::locals.end() ||
-				fn::statics.find(name)!=fn::statics.end() ) error(E_DUPLICATE_SYMBOL);
-			fn::locals[name]=shared_ptr<variable>(this);
+			if(locals.find(name)!=locals.end() ||
+				statics.find(name)!=statics.end() ) error(E_DUPLICATE_SYMBOL);
+			locals[name]=shared_ptr<variable>(this);
 			break;		
 		case S_GLOBAL:
-			if(findGlobal(name)!=NULL) error(E_DUPLICATE_SYMBOL);
+			if(globals.find(name)!=globals.end()) error(E_DUPLICATE_SYMBOL);
 			globals[name]=shared_ptr<variable>(this);
 			break;
 		case S_STATIC:
-			if(fn::locals.find(name)!=fn::locals.end() ||
-				fn::statics.find(name)!=fn::statics.end() ) error(E_DUPLICATE_SYMBOL);
-			fn::statics[name]=shared_ptr<variable>(this);
+			if(locals.find(name)!=locals.end() ||
+				statics.find(name)!=statics.end() ) error(E_DUPLICATE_SYMBOL);
+			statics[name]=shared_ptr<variable>(this);
 			break;
 		default:
 			error(E_INTERNAL);
@@ -369,13 +344,13 @@ shared_ptr<variable> variable::getOrCreateVar(string &name, enum TYPES t)
 {
 	if (!scopeGlobal)
 	{
-		return fn::getOrCreateVar(t, name, false);
+		auto i=locals.find(name);
+		if(i!=locals.end())return i->second;
+		i=statics.find(name);
+		if(i!=statics.end())return i->second;
 	}
-	/* TODO: verify if type is compatible */
-	shared_ptr<operands>op=operands::getOrCreateGlobal(name, t);
-	shared_ptr<variable>v=shared_ptr<variable>(new variable());
-	v->assignment(shared_ptr<expression>(new expression(op.get())));
-	return v;
+	if (globals.find(name)!=globals.end())return globals[name];
+	return shared_ptr<variable>(new variable(scopeGlobal?S_GLOBAL:S_LOCAL, name, t));
 }
 
 void variable::assignment(shared_ptr<expression>value)

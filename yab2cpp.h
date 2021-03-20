@@ -22,13 +22,16 @@ using namespace std;
 #define VER_MINOR 0
 #define VER_RELEASE 1
 
+class variable;
 extern ofstream output_cpp;
 extern ofstream funcs_h;
 extern ofstream heap_h;
 extern ofstream consts_h;
 extern ofstream logfile;
 extern ofstream varNames;
-
+extern unordered_map<string, shared_ptr<variable> >globals;
+extern unordered_map<string, shared_ptr<variable> >locals;
+extern unordered_map<string, shared_ptr<variable> >statics;
 /*
 ** list of all compiler errors 
 **
@@ -151,7 +154,7 @@ enum OPERATORS
 /* global prototype */
 [[noreturn]] void error(enum COMPILE_ERRORS err);
 void logger(string s);
-
+	
 /* internal states used by the parser */
 class scope:public ofstream
 {
@@ -172,15 +175,9 @@ class operands
 	static unsigned int nextID;
 	/* private constructor for parameter passing only */
 	explicit operands(unsigned int id, enum TYPES t);
-protected:
-	static unordered_map<string, shared_ptr<operands>> globals;
 public:
 	enum TYPES getType() const {return type;}
 	unsigned int getID() const {return id;}
-
-	static shared_ptr<operands>findGlobal(string &s);
-	static void dumpVars();
-	static shared_ptr<operands>getOrCreateGlobal(string &s, enum TYPES t);
 
 	enum TYPES getSimpleVarType();
 	void generateBox(enum SCOPES s);
@@ -233,26 +230,24 @@ public:
 		this->right=r;
 		this->oper=o;
 	}
-	expression(operands *x)
+	expression(shared_ptr<operands>x)
 	{
-		op=shared_ptr<operands>(x);
+		op=x;
 		oper=O_TERM;
 	}
 	/*TODO: Recycle temporary variables when not in debug mode*/
-	virtual ~expression();
+	virtual ~expression()
+	{}
 };
 
 /* parent class of all code types */
 class codeType
 {
 	enum CODES type;
-	static list<shared_ptr<codeType> >nesting;
 public:
 	enum CODES getType() const {return this->type;}
 
-	static shared_ptr<codeType> getCurrent();
-
-	virtual void close();
+	virtual void close()=0;
 	virtual void generateBreak()=0;
 
 	explicit codeType(enum CODES t);
@@ -283,8 +278,9 @@ public:
 	label(){this->id = ++nextID;}
 	label(string &s)
 	{
+		unordered_map<string, shared_ptr<label> >lookup;
 		label();
-		lookup[s]=shared_ptr<label>(this);
+		label::lookup[s]=shared_ptr<label>(this);
 	}
 
 	virtual ~label()
@@ -357,7 +353,7 @@ public:
 	static shared_ptr<variable>getOrCreateVar(string &name, enum TYPES t);
 
 	void assignment(shared_ptr<expression>value);
-	explicit variable(enum SCOPES s, string &name, enum TYPES t);
+	variable(enum SCOPES s, string &name, enum TYPES t);
 	variable();
 	~variable()
 	{}
@@ -386,29 +382,27 @@ public:
 	virtual void close();
 
 	explicit forLoop(shared_ptr<variable>v, shared_ptr<expression>start, shared_ptr<expression>stop, shared_ptr<expression>stepVal=NULL);
-	virtual ~forLoop();
+	virtual ~forLoop()
+	{}
 };
 
 class fn:codeType
 {
-	friend variable;
-	static unordered_map<string, shared_ptr<fn> >functions;
+	static unordered_map<string, shared_ptr<fn> > functions;
 	static list<shared_ptr<fn> > callStack;
 	static unsigned int nextID;
 	list<shared_ptr<variable> >params;
+	string funcName;
 	unsigned int id;
 	enum TYPES kind;
 	shared_ptr<operands>rc;
+	/* two labels common to all subroutine calls */
 	shared_ptr<label>startAddr;
 	shared_ptr<label>ret;
 	/* private constructor used by generateGosub and generateOnNSub*/
 	fn(shared_ptr<label>gosub);
-	static unordered_map<string, shared_ptr<variable> >locals;
-	static unordered_map<string, shared_ptr<variable> >statics;
 public:
-	static shared_ptr<variable>getOrCreateVar(enum TYPES t, string &s, bool stat);
 	static void dumpCallStack();
-	static bool isCallStackEmpty(){return callStack.begin()==callStack.end();}
 	static shared_ptr<fn>getCurrentSub();
 	static shared_ptr<fn>getSub(string &name);
 	static void generateGosub(shared_ptr<label> sub);
@@ -419,7 +413,7 @@ public:
 	int getNumParams() const {return this->params.size();}
 	void addParameter(shared_ptr<variable>);
 
-	shared_ptr<operands>generateCall(string &name, list<shared_ptr<operands> >paramList);
+	shared_ptr<operands>generateCall(string &name, list<shared_ptr<operands> >&paramList);
 	void generateReturn(shared_ptr<expression>expr);
 	void generateReturn();
 	virtual void generateBreak();

@@ -8,6 +8,10 @@
 */
 #include "yab2cpp.h"
 
+unordered_map<string, shared_ptr<variable> >globals;
+unordered_map<string, shared_ptr<variable> >locals;
+unordered_map<string, shared_ptr<variable> >statics;
+
 /* These correspond to the enum COMPILE_ERRORS. */
 const char *COMPILE_ERROR_NAMES[]={
 	"no error",
@@ -200,19 +204,17 @@ void logger(string s)
 void shutDown()
 {
 	if  (errorLevel != E_OK) cerr << "\nERROR: " << COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
-	if (fn::isCallStackEmpty())
+	logger("Dumping stack.");
+	if (mode & DUMP && (logfile))
 	{
-		logger("Stack was empty");
+		fn::dumpCallStack();
 	}
-	else
+	varNames << "Global Variables\n";
+	for(auto iter=globals.begin(); iter!=globals.end(); ++iter)
 	{
-		logger("Dumping stack.");
-		if (mode & DUMP && (logfile))
-		{
-			fn::dumpCallStack();
-		}
+		varNames << "variable " << iter->first << " has ID " << iter->second << "\n";
 	}
-	operands::dumpVars();
+	varNames << endl;
 	label::dumpLabels();
 	output_cpp << "}\n}return state;\n}"<< endl;
 }
