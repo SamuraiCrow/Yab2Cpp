@@ -32,6 +32,7 @@ extern ofstream varNames;
 extern unordered_map<string, shared_ptr<variable> >globals;
 extern unordered_map<string, shared_ptr<variable> >locals;
 extern unordered_map<string, shared_ptr<variable> >statics;
+
 /*
 ** list of all compiler errors 
 **
@@ -189,6 +190,7 @@ public:
 	{}
 };
 
+/* constant operands */
 class constOp:public operands
 {
 	/* box is defined once in the constructor */
@@ -207,7 +209,7 @@ public:
 	{}
 };
 
-/* expression can be terminal or non-terminal */
+/* expression can be terminal or non-terminal node */
 class expression
 {
 	shared_ptr<operands>op;
@@ -221,15 +223,19 @@ public:
 
 	bool isBinOp();
 	shared_ptr<operands>evaluate();
-	shared_ptr<operands>stringEval(shared_ptr<operands>l, shared_ptr<operands>r);
+	shared_ptr<operands>stringEval(shared_ptr<operands>l,
+		shared_ptr<operands>r);
 
 	/* r is NULL for unary operators */
-	expression(shared_ptr<expression>l, enum OPERATORS o, shared_ptr<expression>r=NULL)
+	expression(shared_ptr<expression>l, enum OPERATORS o,
+		shared_ptr<expression>r=NULL)
 	{
 		this->left=l;
 		this->right=r;
 		this->oper=o;
 	}
+
+	/* Terminal expression node */
 	expression(shared_ptr<operands>x)
 	{
 		op=x;
@@ -290,14 +296,19 @@ public:
 /* if statement */
 class ifStatement:public codeType
 {
-	shared_ptr<label>redo; /* for continue command */
-	shared_ptr<label>done; /* for break or after "then" condition */
-	shared_ptr<label>chain; /* For elsif command */
+	/* for continue command */
+	shared_ptr<label>redo;
+	/* for break or after "then" condition */
+	shared_ptr<label>done;
+	/* For elsif command */
+	shared_ptr<label>chain;
 public:
 	void generateContinue();
 	virtual void generateBreak() override;
-	void alternative(shared_ptr<expression>e=NULL); /* enable else or elsif condition */
-	virtual void close() override; /* end if */
+	/* enable else or elsif condition */
+	void alternative(shared_ptr<expression>e=NULL);
+	/* end if */
+	virtual void close() override;
 
 	explicit ifStatement(shared_ptr<expression>e);
 	virtual ~ifStatement()
@@ -365,7 +376,8 @@ class arrayType:public variable
 public:
 	virtual string &boxName(list<unsigned int>indexes);
 
-	explicit arrayType(string &name, enum TYPES t, list<unsigned int>dim);/*:variable(scope, name, t);*/
+	explicit arrayType(string &name, enum TYPES t, list<unsigned int>dim);
+		/*:variable(scope, name, t);*/
 	virtual ~arrayType()
 	{}
 };
@@ -375,13 +387,14 @@ class forLoop:public codeType
 	shared_ptr<variable>var;
 	shared_ptr<variable>startTemp;
 	shared_ptr<variable>stopTemp;
-	whileLoop *infrastructure;
+	shared_ptr<whileLoop>infrastructure;
 	shared_ptr<expression>step;
 public:
 	virtual void generateBreak();
 	virtual void close();
 
-	explicit forLoop(shared_ptr<variable>v, shared_ptr<expression>start, shared_ptr<expression>stop, shared_ptr<expression>stepVal=NULL);
+	explicit forLoop(shared_ptr<variable>v, shared_ptr<expression>start,
+		shared_ptr<expression>stop, shared_ptr<expression>stepVal=NULL);
 	virtual ~forLoop()
 	{}
 };
@@ -413,7 +426,8 @@ public:
 	int getNumParams() const {return this->params.size();}
 	void addParameter(shared_ptr<variable>);
 
-	shared_ptr<operands>generateCall(string &name, list<shared_ptr<operands> >&paramList);
+	shared_ptr<operands>generateCall(string &name,
+		list<shared_ptr<operands> >&paramList);
 	void generateReturn(shared_ptr<expression>expr);
 	void generateReturn();
 	virtual void generateBreak();

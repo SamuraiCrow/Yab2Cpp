@@ -23,7 +23,10 @@ ofstream &scope::operator<<(ostream &in)
 		case S_GLOBAL:
 		case S_STATIC:
 			return heap_h;
+		default:
+			break;
 	}
+	error(E_INTERNAL);
 }
 
 /* methods for operands */
@@ -43,6 +46,8 @@ enum TYPES operands::getSimpleVarType()
 		case T_STRINGCALL_ARRAY:
 		case T_STRINGVAR:
 			return T_STRINGVAR;
+		default:
+		break;
 	}
 	error(E_UNASSIGNABLE_TYPE);
 }
@@ -156,14 +161,17 @@ bool expression::isBinOp()
 {
 	switch (this->getOp())
 	{
+		/* fallthrough for multiselect */
 		case O_NEGATE:
 		case O_NOT:
 		case O_INVERT:
 		case O_INT_TO_FLOAT:
 			return false;
-			break;
+		default:
+		return true;
 	}
-	return true;
+	/* unreachable code */
+	error(E_INTERNAL);
 }
 
 shared_ptr<operands>expression::evaluate()
@@ -181,12 +189,14 @@ shared_ptr<operands>expression::evaluate()
 		enum TYPES rt=r->getSimpleVarType();
 		if (lt==T_INTVAR && rt==T_FLOATVAR)
 		{
-			l=shared_ptr<operands>((new expression(shared_ptr<expression>(new expression(l)), O_INT_TO_FLOAT))->evaluate());
+			l=shared_ptr<operands>((new expression(shared_ptr<expression>(
+				new expression(l)), O_INT_TO_FLOAT))->evaluate());
 			lt=T_FLOATVAR;
 		}
 		if (lt==T_FLOATVAR && rt==T_INTVAR)
 		{
-			r=shared_ptr<operands>((new expression(shared_ptr<expression>(new expression(r)), O_INT_TO_FLOAT))->evaluate());
+			r=shared_ptr<operands>((new expression(shared_ptr<expression>(
+				new expression(r)), O_INT_TO_FLOAT))->evaluate());
 			rt=T_FLOATVAR;
 		}
 		if (lt!=rt)error(E_TYPE_MISMATCH);
@@ -197,9 +207,15 @@ shared_ptr<operands>expression::evaluate()
 		t=l->getSimpleVarType();
 		r=NULL;
 	}
-	if (t==T_STRINGVAR) return expression::stringEval(l, r);
 	switch (this->getOp())
 	{
+	case O_STRING_CONCAT:
+		if (t!=T_STRINGVAR) error(E_BAD_SYNTAX);
+		this->op=shared_ptr<operands>(new operands(T_STRINGVAR));
+		this->op->generateBox(scopeGlobal?S_GLOBAL:S_LOCAL);
+		output_cpp << this->op->boxName() << "=" << l->boxName()
+			<< "+" << r->boxName();
+		break;
 	case O_INVERT:
 		this->op=shared_ptr<operands>(new operands(t));
 		this->op->generateBox(scopeVar);
@@ -226,89 +242,88 @@ shared_ptr<operands>expression::evaluate()
 		if (t!=T_INTVAR) error(E_TYPE_MISMATCH);
 		this->op=shared_ptr<operands>(new operands(T_INTVAR));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=" << l->boxName() << "%" << r->boxName() << ";\n";
+		output_cpp << this->op->boxName() << "=" << l->boxName()
+			<< "%" << r->boxName() << ";\n";
 		break;
 	case O_DIVIDE:
 		this->op=shared_ptr<operands>(new operands(t));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=" << l->boxName() << "/" << r->boxName() << ";\n";
+		output_cpp << this->op->boxName() << "=" << l->boxName()
+			<< "/" << r->boxName() << ";\n";
 		break;
 	case O_PLUS:
 		this->op=shared_ptr<operands>(new operands(t));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=" << l->boxName() << "+" << r->boxName() << ";\n";
+		output_cpp << this->op->boxName() << "=" << l->boxName()
+			<< "+" << r->boxName() << ";\n";
 		break;
 	case O_MINUS:
 		this->op=shared_ptr<operands>(new operands(t));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=" << l->boxName() << "-" << r->boxName() << ";\n";
+		output_cpp << this->op->boxName() << "=" << l->boxName()
+			<< "-" << r->boxName() << ";\n";
 		break;
 	case O_MULTIPLY:
 		this->op=shared_ptr<operands>(new operands(t));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=" << l->boxName() << "*" << r->boxName() << ";\n";
+		output_cpp << this->op->boxName() << "=" << l->boxName()
+			<< "*" << r->boxName() << ";\n";
 		break;
 	case O_OR:
 		if (t!=T_INTVAR) error(E_TYPE_MISMATCH);
 		this->op=shared_ptr<operands>(new operands(T_INTVAR));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=" << l->boxName() << "|" << r->boxName() << ";\n";
+		output_cpp << this->op->boxName() << "=" << l->boxName()
+			<< "|" << r->boxName() << ";\n";
 		break;
 	case O_AND:
 		if (t!=T_INTVAR) error(E_TYPE_MISMATCH);
 		this->op=shared_ptr<operands>(new operands(T_INTVAR));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=" << l->boxName() << "&" << r->boxName() << ";\n";
+		output_cpp << this->op->boxName() << "=" << l->boxName()
+			<< "&" << r->boxName() << ";\n";
 		break;
 	case O_GREATER:
 		this->op=shared_ptr<operands>(new operands(T_INTVAR));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=(" << l->boxName() << ">" << r->boxName() << ")?-1:0;\n";
+		output_cpp << this->op->boxName() << "=(" << l->boxName()
+			<< ">" << r->boxName() << ")?-1:0;\n";
 		break;
 	case O_LESS:
 		this->op=shared_ptr<operands>(new operands(T_INTVAR));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=(" << l->boxName() << "<" << r->boxName() << ")?-1:0;\n";
+		output_cpp << this->op->boxName() << "=(" << l->boxName()
+			<< "<" << r->boxName() << ")?-1:0;\n";
 		break;
 	case O_GREATER_EQUAL:
 		this->op=shared_ptr<operands>(new operands(T_INTVAR));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=(" << l->boxName() << ">=" << r->boxName() << ")?-1:0;\n";
+		output_cpp << this->op->boxName() << "=(" << l->boxName()
+			<< ">=" << r->boxName() << ")?-1:0;\n";
 		break;
 	case O_LESS_EQUAL:
 		this->op=shared_ptr<operands>(new operands(T_INTVAR));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=(" << l->boxName() << "<=" << r->boxName() << ")?-1:0;\n";
+		output_cpp << this->op->boxName() << "=(" << l->boxName()
+			<< "<=" << r->boxName() << ")?-1:0;\n";
 		break;
 	case O_EQUAL:
 		this->op=shared_ptr<operands>(new operands(T_INTVAR));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=(" << l->boxName() << "==" << r->boxName() << ")?-1:0;\n";
+		output_cpp << this->op->boxName() << "=(" << l->boxName()
+			<< "==" << r->boxName() << ")?-1:0;\n";
 		break;
 	case O_UNEQUAL:
 		this->op=shared_ptr<operands>(new operands(T_INTVAR));
 		this->op->generateBox(scopeVar);
-		output_cpp << this->op->boxName() << "=(" << l->boxName() << "!=" << r->boxName() << ")?-1:0;\n";
+		output_cpp << this->op->boxName() << "=(" << l->boxName()
+			<< "!=" << r->boxName() << ")?-1:0;\n";
 		break;
 	default:
 		errorLevel=E_INTERNAL;
 		exit(1);
 		break;
 	}
-	/* convert expression into single operand */
-	this->oper=O_TERM;
-	return this->op;
-}
-
-shared_ptr<operands> expression::stringEval(shared_ptr<operands>l, shared_ptr<operands>r)
-{
-	if (this->getOp()==O_STRING_CONCAT)
-	{
-		this->op=shared_ptr<operands>(new operands(T_STRINGVAR));
-		this->op->generateBox(scopeGlobal?S_GLOBAL:S_LOCAL);
-		output_cpp << this->op->boxName() << "=" << l->boxName() << "+" << r->boxName();
-	}
-	else error(E_INTERNAL);
 	/* convert expression into single operand */
 	this->oper=O_TERM;
 	return this->op;
@@ -350,7 +365,8 @@ shared_ptr<variable> variable::getOrCreateVar(string &name, enum TYPES t)
 		if(i!=statics.end())return i->second;
 	}
 	if (globals.find(name)!=globals.end())return globals[name];
-	return shared_ptr<variable>(new variable(scopeGlobal?S_GLOBAL:S_LOCAL, name, t));
+	return shared_ptr<variable>(new variable(scopeGlobal?S_GLOBAL:S_LOCAL, 
+		name, t));
 }
 
 void variable::assignment(shared_ptr<expression>value)

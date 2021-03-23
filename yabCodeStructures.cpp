@@ -31,7 +31,8 @@ void label::dumpLabels()
 	varNames << "Global Labels\n\n";
 	for(auto iter=lookup.begin(); iter!=lookup.end(); ++iter)
 	{
-		varNames << "label " << iter->first << " has ID " << iter->second->getID() << "\n" ;
+		varNames << "label " << iter->first << " has ID "
+			<< iter->second->getID() << "\n" ;
 	}
 	varNames << endl;
 }
@@ -113,7 +114,8 @@ void ifStatement::alternative(shared_ptr<expression>e)
 	if(e!=NULL)
 	{
 		this->chain=shared_ptr<label>(new label());
-		shared_ptr<expression>f=shared_ptr<expression>(new expression(e,O_NOT));
+		shared_ptr<expression>f=shared_ptr<expression>(
+			new expression(e,O_NOT));
 		chain->generateCondJump(f);
 	}
 }
@@ -195,8 +197,9 @@ forLoop::forLoop(shared_ptr<variable>v,
 	stopTemp->assignment(stop);
 	/* if (v<stopTemp) */
 	shared_ptr<ifStatement>c=shared_ptr<ifStatement>(new ifStatement(
-		shared_ptr<expression>(new expression(shared_ptr<expression>(new expression(v)),
-		O_LESS,	shared_ptr<expression>(new expression(stopTemp))))));
+		shared_ptr<expression>(new expression(shared_ptr<expression>(
+			new expression(v)),	O_LESS,	shared_ptr<expression>(
+			new expression(stopTemp))))));
 	/* startTemp=v;*/
 	startTemp->assignment(shared_ptr<expression>(new expression(v)));
 	/* else */
@@ -216,9 +219,10 @@ forLoop::forLoop(shared_ptr<variable>v,
 		shared_ptr<expression>(new expression(startTemp))));
 	shared_ptr<expression>stopper=shared_ptr<expression>(new expression(
 		stopper1, O_AND, stopper2));
-	this->infrastructure=new whileLoop(shared_ptr<expression>(new expression(
-		stopper, O_UNEQUAL, shared_ptr<expression>(new expression(
-		shared_ptr<constOp>(new constOp("0", T_INT)))))));
+	shared_ptr<whileLoop>infrastructure=shared_ptr<whileLoop>(new whileLoop(
+		shared_ptr<expression>(new expression(stopper, O_UNEQUAL,
+		shared_ptr<expression>(new expression(
+		shared_ptr<constOp>(new constOp("0", T_INT))))))));
 	if (stepVal)
 	{
 		step=stepVal;
