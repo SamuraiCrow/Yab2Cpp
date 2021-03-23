@@ -16,6 +16,22 @@ unsigned int label::nextID;
 codeType::codeType(enum CODES t)
 {
 	this->type=t;
+	if (TRACE)
+	{
+		indent();
+		logfile << "Entering " << CODETYPES[t];
+	}
+	++indentLevel;
+}
+
+codeType::~codeType()
+{
+	--indentLevel;
+	if (TRACE)
+	{
+		indent();
+		logfile << "Leaving " << CODETYPES[this->getType()];
+	}
 }
 
 /* label definitions and helper routines */

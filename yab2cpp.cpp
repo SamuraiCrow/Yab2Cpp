@@ -67,9 +67,13 @@ const string CODETYPES[]={
 };
 
 enum COMPILE_ERRORS errorLevel=E_OK;
-unsigned int mode=0;
 unsigned int indentLevel=0;
 bool scopeGlobal=true;
+
+bool COMPILE=false;
+bool DUMP=false;
+bool DEBUG=false;
+bool TRACE=false;
 
 ifstream src;
 ofstream output_cpp;
@@ -92,7 +96,7 @@ int main(int argc, char *argv[])
 	switch (argc)
 	{
 		case 1:
-			mode=COMPILE;
+			COMPILE=true;
 			cout << "\nCompile initiated." << endl;
 			compile();
 			break;
@@ -103,7 +107,7 @@ int main(int argc, char *argv[])
 				{
 					case 'd':
 						cout << "\nIdentifier dump initiated." << endl;
-						mode=DUMP;
+						DUMP=true;
 						compile();
 						break;
 					case 'v':
@@ -112,17 +116,28 @@ int main(int argc, char *argv[])
 						break;
 					case 'V':
 						cout << "\nVerbose compile initiated." << endl;
-						mode=DUMP|COMPILE;
+						DUMP=true;
+						COMPILE=true;
 						compile();
 						break;
 					case 'D':
 						cout << "\nCompiler debug and dump mode initiated." << endl;
-						mode=DUMP|DEBUG;
+						DUMP=true;
+						DEBUG=true;
 						compile();
 						break;
 					case 'G':
 						cout << "\nDebug, dump and compile initiated." << endl;
-						mode=DUMP|DEBUG|COMPILE;
+						DUMP=true;
+						DEBUG=true;
+						COMPILE=true;
+						compile();
+						break;
+					case 't':
+						cout << "\nDebug, dump and trace initiated." << endl;
+						DEBUG=true;
+						DUMP=true;
+						TRACE=true;
 						compile();
 						break;
 					default:
@@ -141,20 +156,21 @@ int main(int argc, char *argv[])
 /* print the help text to stdout */
 void helpText(const string commandname)
 {
-	cout << commandname << "[-d|D|V|v|G] < filename.mb\n" <<
+	cout << commandname << "[-d|D|V|v|G|t] < filename.mb\n" <<
 		"Compiles filename.mb by default unless a flag is specified.\n" <<
 		"\n The optional flags are as follows:\n" <<
 		"-d is a dump of build to the parse.log file.\n" <<
 		"-D is a dump of identifiers and logged build.\n" <<
 		"-V is for a verbose build where the compiler logs and compiles.\n" <<
-		"-v prints the version and exits.\n\n" <<
+		"-v prints the version and exits.\n" <<
+		"-t activates dump, debug and trace\n" <<
 		"-G activates dump, debug and compile all at once.\n" << endl;
 }
 
 /* open files and initialize them*/
 void setUp()
 {
-	if (mode & COMPILE)
+	if (COMPILE)
 	{
 		/* compile mode */
 		output_cpp.open("output/output.cpp");
@@ -165,12 +181,12 @@ void setUp()
 			<< "#include \"heap.h\"\n#include \"functions.h\"\n"
 			<< "unsigned int state=start;\nint run(){\nwhile (state>=start){\n"
 			<< "switch(state){\ncase start:" << endl;
-		if (mode & DEBUG)
+		if (DUMP)
 		{
 			varNames.open("varnames.txt");
 		}
 	}
-	if (mode & DUMP)
+	if (DEBUG)
 	{
 		/* dump identifier mode */
 		logfile.open("parse.log");
@@ -184,18 +200,23 @@ void setUp()
 	exit(1);
 }
 
+void indent()
+{
+	unsigned int count=indentLevel;
+	while (count > 0)
+	{
+		logfile << '\t';
+		--count;
+	}
+
+}
+
 /* write a note in the logfile */
 void logger(string s)
 {
-	unsigned int count;
-	if (mode & DEBUG)
+	if (DEBUG)
 	{
-		count=indentLevel;
-		while (count > 0)
-		{
-			logfile << '\t';
-			--count;
-		}
+		indent();
 		logfile << s << endl;
 	}
 }
@@ -205,7 +226,7 @@ void shutDown()
 {
 	if  (errorLevel != E_OK) cerr << "\nERROR: " << COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
 	logger("Dumping stack.");
-	if (mode & DUMP && (logfile))
+	if (DUMP && (logfile))
 	{
 		fn::dumpCallStack();
 	}

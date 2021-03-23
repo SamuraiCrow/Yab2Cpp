@@ -32,6 +32,8 @@ extern ofstream varNames;
 extern unordered_map<string, shared_ptr<variable> >globals;
 extern unordered_map<string, shared_ptr<variable> >locals;
 extern unordered_map<string, shared_ptr<variable> >statics;
+extern const string CODETYPES[];
+extern const string TYPENAMES[];
 
 /*
 ** list of all compiler errors 
@@ -55,15 +57,14 @@ enum COMPILE_ERRORS {
 };
 
 extern enum COMPILE_ERRORS errorLevel;
-extern unsigned int mode;
 extern unsigned int indentLevel;
 extern bool scopeGlobal;
 
-/* flags used internally by the compiler
-	(must be powers of 2) */
-#define COMPILE 1
-#define DUMP 2
-#define DEBUG 4
+/* flags used internally by the compiler */
+extern bool COMPILE;
+extern bool DUMP;
+extern bool DEBUG;
+extern bool TRACE;
 
 /* list of all variable and constant types */
 enum TYPES
@@ -81,6 +82,7 @@ enum TYPES
 	T_STRINGCALL_ARRAY,
 	T_VOIDCALL
 };
+
 /* list of all kinds of other code structures */
 enum CODES
 {
@@ -154,6 +156,7 @@ enum OPERATORS
 
 /* global prototype */
 [[noreturn]] void error(enum COMPILE_ERRORS err);
+void indent();
 void logger(string s);
 	
 /* internal states used by the parser */
@@ -253,12 +256,8 @@ class codeType
 public:
 	enum CODES getType() const {return this->type;}
 
-	virtual void close()=0;
-	virtual void generateBreak()=0;
-
 	explicit codeType(enum CODES t);
-	virtual ~codeType()
-	{}
+	virtual ~codeType();
 };
 
 class label
@@ -304,11 +303,11 @@ class ifStatement:public codeType
 	shared_ptr<label>chain;
 public:
 	void generateContinue();
-	virtual void generateBreak() override;
+	virtual void generateBreak();
 	/* enable else or elsif condition */
 	void alternative(shared_ptr<expression>e=NULL);
 	/* end if */
-	virtual void close() override;
+	virtual void close();
 
 	explicit ifStatement(shared_ptr<expression>e);
 	virtual ~ifStatement()
@@ -321,7 +320,7 @@ class repeatLoop:public codeType
 	shared_ptr<label>loopStart;
 	shared_ptr<label>loopEnd;
 public:
-	virtual void generateBreak() override;
+	virtual void generateBreak();
 	virtual void close(shared_ptr<expression>e);
 
 	explicit repeatLoop();
@@ -334,8 +333,8 @@ class doLoop:public codeType
 	shared_ptr<label>loopStart;
 	shared_ptr<label>loopEnd;
 public:
-	virtual void generateBreak() override;
-	virtual void close() override;
+	virtual void generateBreak();
+	virtual void close();
 
 	explicit doLoop();
 	virtual ~doLoop()
@@ -349,8 +348,8 @@ class whileLoop:public codeType
 	shared_ptr<label>loopEnd;
 	shared_ptr<expression>cond;
 public:
-	virtual void generateBreak() override;
-	virtual void close() override;
+	virtual void generateBreak();
+	virtual void close();
 
 	explicit whileLoop(shared_ptr<expression>e);
 	virtual ~whileLoop()
@@ -374,7 +373,8 @@ class arrayType:public variable
 {
 	list<unsigned int> dimensions;
 public:
-	virtual string &boxName(list<unsigned int>indexes);
+	virtual string boxName(list<unsigned int>indexes);
+	virtual string boxName(){error(E_TYPE_MISMATCH);}
 
 	explicit arrayType(string &name, enum TYPES t, list<unsigned int>dim);
 		/*:variable(scope, name, t);*/
