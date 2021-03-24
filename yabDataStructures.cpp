@@ -352,7 +352,6 @@ variable::variable(enum SCOPES s, string &name, enum TYPES t):operands(t)
 		default:
 			error(E_INTERNAL);
 	}
-	this->generateBox(s);
 }
 
 shared_ptr<variable> variable::getOrCreateVar(string &name, enum TYPES t)
@@ -365,8 +364,10 @@ shared_ptr<variable> variable::getOrCreateVar(string &name, enum TYPES t)
 		if(i!=statics.end())return i->second;
 	}
 	if (globals.find(name)!=globals.end())return globals[name];
-	return shared_ptr<variable>(new variable(scopeGlobal?S_GLOBAL:S_LOCAL, 
-		name, t));
+	shared_ptr<variable>v=shared_ptr<variable>(new variable(
+		scopeGlobal?S_GLOBAL:S_LOCAL, name, t));
+	v->generateBox(scopeGlobal?S_GLOBAL:S_LOCAL);
+	return v;
 }
 
 void variable::assignment(shared_ptr<expression>value)
@@ -395,4 +396,49 @@ void variable::assignment(shared_ptr<expression>value)
 				<< op->boxName() << ";\n";
 			break;
 	}
+}
+
+string arrayType::boxName(list<unsigned int>indexes)
+{
+	ostringstream out;
+	string buf;
+	auto i=indexes.begin();
+	out << 'v' << this->getID();
+	while (i!=indexes.end())
+	{
+		out << '[' << *i << ']';
+	}
+	out.str(buf);
+	out.clear();
+	return buf;
+}
+
+string arrayType::generateBox(enum SCOPES s)
+{
+	ostringstream out;
+	string buf;
+	switch (this->getType())
+	{
+		case T_STRINGCALL_ARRAY:
+			out << "string ";
+			break;
+		case T_INTCALL_ARRAY:
+			out << "int ";
+			break;
+		case T_FLOATCALL_ARRAY:
+			out << "double ";
+			break;
+		default:
+			error(E_INTERNAL);
+	}
+	out << boxName(this->dimensions) << ";\n";
+	out.str(buf);
+	out.clear();
+	return buf;
+}
+
+arrayType::arrayType(string &name, enum TYPES t, list<unsigned int>dim):
+	variable(S_GLOBAL, name, t)
+{
+	this->dimensions=dim;
 }

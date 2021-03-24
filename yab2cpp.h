@@ -53,7 +53,8 @@ enum COMPILE_ERRORS {
 	E_GOSUB_CANNOT_RETURN_VALUE,
 	E_SUBROUTINE_NOT_FOUND,
 	E_TOO_MANY_PARAMETERS,
-	E_UNASSIGNABLE_TYPE
+	E_UNASSIGNABLE_TYPE,
+	E_UNDIMENSIONED_ARRAY
 };
 
 extern enum COMPILE_ERRORS errorLevel;
@@ -363,6 +364,7 @@ public:
 	static shared_ptr<variable>getOrCreateVar(string &name, enum TYPES t);
 
 	void assignment(shared_ptr<expression>value);
+	/* always call generateBox() after new variable() */
 	variable(enum SCOPES s, string &name, enum TYPES t);
 	variable();
 	~variable()
@@ -373,8 +375,9 @@ class arrayType:public variable
 {
 	list<unsigned int> dimensions;
 public:
+	string generateBox(enum SCOPES s);
 	virtual string boxName(list<unsigned int>indexes);
-	virtual string boxName(){error(E_TYPE_MISMATCH);}
+	virtual string boxName(){error(E_UNDIMENSIONED_ARRAY);}
 
 	explicit arrayType(string &name, enum TYPES t, list<unsigned int>dim);
 		/*:variable(scope, name, t);*/
