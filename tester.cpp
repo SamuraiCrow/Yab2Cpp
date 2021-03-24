@@ -1,12 +1,14 @@
 /*
-**	Yab2Cpp
+**	Tester.cpp
 **
-**	Transpiler by Samuel D. Crow
+**	Transpiler framework tester
+**      by Samuel D. Crow
 **
 **	Based on Yab
 **
 */
 #include "yab2cpp.h"
+#include <cassert>
 
 unordered_map<string, shared_ptr<variableType> >globals;
 unordered_map<string, shared_ptr<variableType> >locals;
@@ -225,7 +227,8 @@ void logger(string s)
 /* shutdown the compiler and exit */
 void shutDown()
 {
-	if  (errorLevel != E_OK) cerr << "\nERROR: " << COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
+	if  (errorLevel != E_OK) cerr << "\nERROR: " 
+		<< COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
 	logger("Dumping stack.");
 	if (DUMP && (logfile))
 	{
@@ -234,11 +237,24 @@ void shutDown()
 	varNames << "Global Variables\n";
 	for(auto iter=globals.begin(); iter!=globals.end(); ++iter)
 	{
-		varNames << "variable " << iter->first << " has ID " << iter->second << "\n";
+		varNames << "variable " << iter->first 
+			<< " has ID " << iter->second << "\n";
 	}
 	varNames << endl;
 	label::dumpLabels();
 	output_cpp << "}\n}return state;\n}"<< endl;
+}
+
+void testInt()
+{
+	string name="v";
+	shared_ptr<variableType>v=
+		variableType::getOrCreateVar(name, T_INTVAR);
+	v->assignment(shared_ptr<expression>(new expression(
+		shared_ptr<operands>(new constOp("2", T_INT)))));
+	shared_ptr<printSegment>print=shared_ptr<printSegment>(
+		new printSegment(shared_ptr<expression>(new expression(v))));
+	print->generate();
 }
 
 /* open files and compile */
@@ -246,7 +262,7 @@ void compile()
 {
 	setUp();
 
-
+	testInt();
 
 	shutDown();
 }

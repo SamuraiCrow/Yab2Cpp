@@ -203,7 +203,7 @@ void whileLoop::close()
 	loopEnd->generate();
 }
 
-forLoop::forLoop(shared_ptr<variable>v,
+forLoop::forLoop(shared_ptr<variableType>v,
 	shared_ptr<expression>start, shared_ptr<expression>stop,
 	shared_ptr<expression>stepVal):codeType(T_FORLOOP)
 {

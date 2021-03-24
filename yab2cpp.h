@@ -22,16 +22,16 @@ using namespace std;
 #define VER_MINOR 0
 #define VER_RELEASE 1
 
-class variable;
+class variableType;
 extern ofstream output_cpp;
 extern ofstream funcs_h;
 extern ofstream heap_h;
 extern ofstream consts_h;
 extern ofstream logfile;
 extern ofstream varNames;
-extern unordered_map<string, shared_ptr<variable> >globals;
-extern unordered_map<string, shared_ptr<variable> >locals;
-extern unordered_map<string, shared_ptr<variable> >statics;
+extern unordered_map<string, shared_ptr<variableType> >globals;
+extern unordered_map<string, shared_ptr<variableType> >locals;
+extern unordered_map<string, shared_ptr<variableType> >statics;
 extern const string CODETYPES[];
 extern const string TYPENAMES[];
 
@@ -67,7 +67,7 @@ extern bool DUMP;
 extern bool DEBUG;
 extern bool TRACE;
 
-/* list of all variable and constant types */
+/* list of all variableType and constant types */
 enum TYPES
 {
 	T_UNKNOWN=0,
@@ -245,7 +245,7 @@ public:
 		op=x;
 		oper=O_TERM;
 	}
-	/*TODO: Recycle temporary variables when not in debug mode*/
+	/*TODO: Recycle temporary variableTypes when not in debug mode*/
 	virtual ~expression()
 	{}
 };
@@ -357,21 +357,21 @@ public:
 	{}
 };
 
-class variable:public operands
+class variableType:public operands
 {
 	enum SCOPES myScope;
 public:
-	static shared_ptr<variable>getOrCreateVar(string &name, enum TYPES t);
+	static shared_ptr<variableType>getOrCreateVar(string &name, enum TYPES t);
 
 	void assignment(shared_ptr<expression>value);
-	/* always call generateBox() after new variable() */
-	variable(enum SCOPES s, string &name, enum TYPES t);
-	variable();
-	~variable()
+	/* always call generateBox() after new variableType() */
+	variableType(enum SCOPES s, string &name, enum TYPES t);
+	variableType();
+	~variableType()
 	{}
 };
 
-class arrayType:public variable
+class arrayType:public variableType
 {
 	list<unsigned int> dimensions;
 public:
@@ -383,23 +383,23 @@ public:
 		shared_ptr<expression>value);
 
 	explicit arrayType(string &name, enum TYPES t, list<unsigned int>dim);
-		/*:variable(scope, name, t);*/
+		/*:variableType(scope, name, t);*/
 	virtual ~arrayType()
 	{}
 };
 
 class forLoop:public codeType
 {
-	shared_ptr<variable>var;
-	shared_ptr<variable>startTemp;
-	shared_ptr<variable>stopTemp;
+	shared_ptr<variableType>var;
+	shared_ptr<variableType>startTemp;
+	shared_ptr<variableType>stopTemp;
 	shared_ptr<whileLoop>infrastructure;
 	shared_ptr<expression>step;
 public:
 	virtual void generateBreak();
 	virtual void close();
 
-	explicit forLoop(shared_ptr<variable>v, shared_ptr<expression>start,
+	explicit forLoop(shared_ptr<variableType>v, shared_ptr<expression>start,
 		shared_ptr<expression>stop, shared_ptr<expression>stepVal=NULL);
 	virtual ~forLoop()
 	{}
@@ -410,7 +410,7 @@ class fn:codeType
 	static unordered_map<string, shared_ptr<fn> > functions;
 	static list<shared_ptr<fn> > callStack;
 	static unsigned int nextID;
-	list<shared_ptr<variable> >params;
+	list<shared_ptr<variableType> >params;
 	string funcName;
 	unsigned int id;
 	enum TYPES kind;
@@ -430,7 +430,7 @@ public:
 
 	unsigned int getID() const {return this->id;}
 	int getNumParams() const {return this->params.size();}
-	void addParameter(shared_ptr<variable>);
+	void addParameter(shared_ptr<variableType>);
 
 	shared_ptr<operands>generateCall(string &name,
 		list<shared_ptr<operands> >&paramList);
@@ -444,26 +444,17 @@ public:
 	{}
 };
 
-/* The next two structures are used to implement the PRINT statement. */
-class printSegments
+class printSegment
 {
 	shared_ptr<expression>cargo;
-	enum SEPARATORS kind;
+	enum SEPARATORS sep;
 public:
-	printSegments(shared_ptr<expression>e, enum SEPARATORS k)
-	{
-		this->cargo=e;
-		this->kind=k;
-	}
-	printSegments(shared_ptr<expression>e) {printSegments(e, S_LINEFEED);}
-	printSegments() {printSegments(NULL);}
-	virtual ~printSegments()
+	void generate();
+	printSegment(shared_ptr<expression>e, enum SEPARATORS s);
+	printSegment(shared_ptr<expression>e) {printSegment(e, S_LINEFEED);}
+	printSegment() {printSegment(NULL);}
+	virtual ~printSegment()
 	{}
-};
-
-struct printStatement
-{
-	list<shared_ptr<printSegments> >segments;
 };
 
 #endif

@@ -330,7 +330,7 @@ shared_ptr<operands>expression::evaluate()
 }
 
 /* variable definitions */
-variable::variable(enum SCOPES s, string &name, enum TYPES t):operands(t)
+variableType::variableType(enum SCOPES s, string &name, enum TYPES t):operands(t)
 {
 	this->myScope=s;
 	switch (s)
@@ -338,23 +338,23 @@ variable::variable(enum SCOPES s, string &name, enum TYPES t):operands(t)
 		case S_LOCAL:
 			if(locals.find(name)!=locals.end() ||
 				statics.find(name)!=statics.end() ) error(E_DUPLICATE_SYMBOL);
-			locals[name]=shared_ptr<variable>(this);
+			locals[name]=shared_ptr<variableType>(this);
 			break;		
 		case S_GLOBAL:
 			if(globals.find(name)!=globals.end()) error(E_DUPLICATE_SYMBOL);
-			globals[name]=shared_ptr<variable>(this);
+			globals[name]=shared_ptr<variableType>(this);
 			break;
 		case S_STATIC:
 			if(locals.find(name)!=locals.end() ||
 				statics.find(name)!=statics.end() ) error(E_DUPLICATE_SYMBOL);
-			statics[name]=shared_ptr<variable>(this);
+			statics[name]=shared_ptr<variableType>(this);
 			break;
 		default:
 			error(E_INTERNAL);
 	}
 }
 
-shared_ptr<variable> variable::getOrCreateVar(string &name, enum TYPES t)
+shared_ptr<variableType> variableType::getOrCreateVar(string &name, enum TYPES t)
 {
 	if (!scopeGlobal)
 	{
@@ -364,13 +364,13 @@ shared_ptr<variable> variable::getOrCreateVar(string &name, enum TYPES t)
 		if(i!=statics.end())return i->second;
 	}
 	if (globals.find(name)!=globals.end())return globals[name];
-	shared_ptr<variable>v=shared_ptr<variable>(new variable(
+	shared_ptr<variableType>v=shared_ptr<variableType>(new variableType(
 		scopeGlobal?S_GLOBAL:S_LOCAL, name, t));
 	v->generateBox(scopeGlobal?S_GLOBAL:S_LOCAL);
 	return v;
 }
 
-void variable::assignment(shared_ptr<expression>value)
+void variableType::assignment(shared_ptr<expression>value)
 {
 	shared_ptr<operands>op=value->evaluate();
 	enum TYPES t=op->getSimpleVarType();
@@ -444,7 +444,7 @@ string arrayType::generateBox(enum SCOPES s)
 }
 
 arrayType::arrayType(string &name, enum TYPES t, list<unsigned int>dim):
-	variable(S_GLOBAL, name, t)
+	variableType(S_GLOBAL, name, t)
 {
 	this->dimensions=dim;
 }

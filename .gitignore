@@ -7,3 +7,5 @@ yab
 *.so
 .vscode/*
 yab2cpp
+tester
+output/*
