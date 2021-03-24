@@ -11,7 +11,7 @@
 /* static initializers */
 unordered_map<string, shared_ptr<fn> > fn::functions;
 list<shared_ptr<fn> >fn::callStack;
-unsigned int fn::nextID;
+unsigned int fn::nextID=0;
 
 /* function definitions */
 void fn::dumpCallStack()

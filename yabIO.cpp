@@ -31,18 +31,19 @@ void printSegment::generate()
 			output_cpp << "printf(\"%f\", " << op->boxName() << ");\n";
 			break;
 		default:
+			error(E_TYPE_MISMATCH);
 			break;
 		}
 	}
 	switch (sep)
 	{
 	case S_LINEFEED:
-		output_cpp << "puts(\"\n\");\n";
+		output_cpp << "puts(\"\\n\");\n";
 		return;
 	case S_SEMICOLON:
 		return;
 	case S_COMMA:
-		output_cpp << "putc('\t');\n";
+		output_cpp << "putc('\\t');\n";
 		return;
 	default:
 		error(E_BAD_SYNTAX);

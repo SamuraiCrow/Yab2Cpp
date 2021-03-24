@@ -5,7 +5,9 @@ bison.output
 yab
 *.o
 *.so
+*.log
 .vscode/*
 yab2cpp
 tester
 output/*
+runtime/main

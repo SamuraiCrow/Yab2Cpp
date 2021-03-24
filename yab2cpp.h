@@ -160,19 +160,6 @@ enum OPERATORS
 void indent();
 void logger(string s);
 	
-/* internal states used by the parser */
-class scope:public ofstream
-{
-	enum SCOPES myscope;
-public:
-	ofstream &operator<<(ostream &in);
-	enum SCOPES getScope() const {return myscope;}
-
-	scope(enum SCOPES s){myscope=s;}
-	~scope()
-	{}
-};
-
 class operands
 {
 	enum TYPES type;
@@ -268,6 +255,7 @@ class label
 	static unordered_map<string, shared_ptr<label> > lookup;
 public:
 	static void dumpLabels();
+	static void generateEnd();
 
 	unsigned int getID() const {return id;}
 
@@ -450,9 +438,7 @@ class printSegment
 	enum SEPARATORS sep;
 public:
 	void generate();
-	printSegment(shared_ptr<expression>e, enum SEPARATORS s);
-	printSegment(shared_ptr<expression>e) {printSegment(e, S_LINEFEED);}
-	printSegment() {printSegment(NULL);}
+	printSegment(shared_ptr<expression>e=NULL, enum SEPARATORS s=S_LINEFEED);
 	virtual ~printSegment()
 	{}
 };

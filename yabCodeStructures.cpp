@@ -7,10 +7,11 @@
 **
 */
 #include "yab2cpp.h"
+#include "runtime/runtime.h"
 
 /* static initializers */
 unordered_map<string, shared_ptr<label> > label::lookup;
-unsigned int label::nextID;
+unsigned int label::nextID=START;
 
 /* base class of all the code structure types */
 codeType::codeType(enum CODES t)
@@ -51,6 +52,11 @@ void label::dumpLabels()
 			<< iter->second->getID() << "\n" ;
 	}
 	varNames << endl;
+}
+
+void label::generateEnd()
+{
+	output_cpp << "state=EXIT;\nbreak;\n";
 }
 
 void label::generateJumpTo()

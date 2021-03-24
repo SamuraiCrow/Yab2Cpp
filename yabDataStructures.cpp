@@ -10,24 +10,8 @@
 
 /* forward declaration and static initializers */
 class fn;
-unsigned int operands::nextID;
+unsigned int operands::nextID=0;
 unordered_map<string, unsigned int> constOp::strConst;
-
-/* scope methods */
-ofstream &scope::operator<<(ostream &in)
-{
-	switch (this->myscope)
-	{
-		case S_LOCAL:
-			return funcs_h;
-		case S_GLOBAL:
-		case S_STATIC:
-			return heap_h;
-		default:
-			break;
-	}
-	error(E_INTERNAL);
-}
 
 /* methods for operands */
 enum TYPES operands::getSimpleVarType()
@@ -62,10 +46,8 @@ operands::operands(enum TYPES t)
 
 void operands::generateBox(enum SCOPES s)
 {
-	string x;
-	scope y(s);
-	stringstream ss;
-	switch (this->getSimpleVarType())
+	ostringstream ss;
+	switch (this->getType())
 	{
 	case T_INTVAR:
 		ss << "int v";
@@ -80,8 +62,19 @@ void operands::generateBox(enum SCOPES s)
 		error(E_TYPE_MISMATCH);
 	}
 	ss << this->getID() << ";\n";
-	ss.str(x);
-	y << x;
+	switch (s)
+	{
+		case S_LOCAL:
+			funcs_h << ss.str();
+			return;
+		case S_GLOBAL:
+		case S_STATIC:
+			heap_h << ss.str();
+			return;
+		default:
+			break;
+	}
+	error(E_INTERNAL);
 }
 
 string operands::boxName()
@@ -94,7 +87,7 @@ string operands::boxName()
 	case T_INTVAR:
 	case T_FLOATVAR:
 		s << 'v' << this->getID();
-		s.str(x);
+		x=s.str();
 		s.clear();
 		return x;
 		break;
@@ -108,7 +101,7 @@ void constOp::processConst(unsigned int i)
 {
 	stringstream me;
 	me << 'k' << i;
-	me.str(box);
+	box=me.str();
 }
 
 void constOp::processConst( const string &s)
@@ -401,7 +394,6 @@ void variableType::assignment(shared_ptr<expression>value)
 string arrayType::boxName(list<shared_ptr<operands> >indexes)
 {
 	ostringstream out;
-	string buf;
 	auto i=indexes.begin();
 	out << 'v' << this->getID();
 	while (i!=indexes.end())
@@ -409,15 +401,12 @@ string arrayType::boxName(list<shared_ptr<operands> >indexes)
 		out << '[' << (*i)->boxName() << ']';
 		++i;
 	}
-	out.str(buf);
-	out.clear();
-	return buf;
+	return out.str();
 }
 
 string arrayType::generateBox(enum SCOPES s)
 {
 	ostringstream out;
-	string buf;
 	switch (this->getType())
 	{
 		case T_STRINGCALL_ARRAY:
@@ -438,9 +427,7 @@ string arrayType::generateBox(enum SCOPES s)
 		out << '[' << *i << ']';
 	}
 	out << ";\n";
-	out.str(buf);
-	out.clear();
-	return buf;
+	return out.str();
 }
 
 arrayType::arrayType(string &name, enum TYPES t, list<unsigned int>dim):
