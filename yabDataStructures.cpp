@@ -398,7 +398,7 @@ void variable::assignment(shared_ptr<expression>value)
 	}
 }
 
-string arrayType::boxName(list<unsigned int>indexes)
+string arrayType::boxName(list<shared_ptr<operands> >indexes)
 {
 	ostringstream out;
 	string buf;
@@ -406,7 +406,8 @@ string arrayType::boxName(list<unsigned int>indexes)
 	out << 'v' << this->getID();
 	while (i!=indexes.end())
 	{
-		out << '[' << *i << ']';
+		out << '[' << (*i)->boxName() << ']';
+		++i;
 	}
 	out.str(buf);
 	out.clear();
@@ -431,7 +432,12 @@ string arrayType::generateBox(enum SCOPES s)
 		default:
 			error(E_INTERNAL);
 	}
-	out << boxName(this->dimensions) << ";\n";
+	out << 'v' << this->getID();
+	for (auto i=dimensions.begin();i!=dimensions.end();++i)
+	{
+		out << '[' << *i << ']';
+	}
+	out << ";\n";
 	out.str(buf);
 	out.clear();
 	return buf;
@@ -441,4 +447,40 @@ arrayType::arrayType(string &name, enum TYPES t, list<unsigned int>dim):
 	variable(S_GLOBAL, name, t)
 {
 	this->dimensions=dim;
+}
+
+void arrayType::assignment(list<shared_ptr<expression> >indexes,
+	shared_ptr<expression>value)
+{
+	list<shared_ptr<operands>>x;
+	shared_ptr<operands>op=value->evaluate();
+	enum TYPES t=op->getSimpleVarType();
+	auto i=indexes.begin();
+	while(i!=indexes.end())
+	{
+		x.push_back((*i)->evaluate());
+		++i;
+	}
+	switch (this->getType())
+	{
+	case T_FLOATCALL_ARRAY:
+		if (t==T_INTVAR)
+		{
+			output_cpp << this->boxName(x)
+				<< "=static_cast<double>("
+				<< op->boxName() << ");\n";
+			return;
+		}
+		if (t!=T_FLOATVAR) error(E_TYPE_MISMATCH);
+		break;
+	case T_INTCALL_ARRAY:
+		if (t!=T_INTVAR) error(E_TYPE_MISMATCH);
+		break;
+	case T_STRINGCALL_ARRAY:
+		if (t!=T_STRINGVAR) error(E_TYPE_MISMATCH);
+		break;
+	default:
+		error(E_INTERNAL);
+	}
+	output_cpp << this->boxName(x) << '=' << op->boxName() <<";\n";
 }

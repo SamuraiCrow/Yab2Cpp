@@ -376,8 +376,11 @@ class arrayType:public variable
 	list<unsigned int> dimensions;
 public:
 	string generateBox(enum SCOPES s);
-	virtual string boxName(list<unsigned int>indexes);
+	virtual string boxName(list<shared_ptr<operands> >indexes);
 	virtual string boxName(){error(E_UNDIMENSIONED_ARRAY);}
+
+	void assignment(list<shared_ptr<expression> >indexes,
+		shared_ptr<expression>value);
 
 	explicit arrayType(string &name, enum TYPES t, list<unsigned int>dim);
 		/*:variable(scope, name, t);*/
