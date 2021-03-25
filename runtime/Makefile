@@ -1,6 +1,8 @@
 CC := g++
 CFLAGS := -Wall
 CFLAGS += -std=c++11
+CFLAGS += -fno-rtti
+CFLAGS += -fno-exceptions
 CFLAGS += -Os
 LFLAGS := 
 
@@ -18,10 +20,10 @@ bin_main: $(MAIN_OBJ_DEPS)
 	$(CC) -o main $(MAIN_OBJ_DEPS)
 
 main.o: $(OUTPUT_DEPS)
-	$(CC) -o main.o -c main.cpp
+	$(CC) $(CFLAGS) -o main.o -c main.cpp
 
 output.o: $(OUTPUT_DEPS)
-	$(CC) -I$(SRC) -o output.o -c $(SRC)output.cpp
+	$(CC) $(CFLAGS) -I$(SRC) -o output.o -c $(SRC)output.cpp
 
 .PHONY: clean
 clean:

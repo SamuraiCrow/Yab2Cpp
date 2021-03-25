@@ -4,8 +4,9 @@
 **  by Samuel D. Crow
 */
 #ifndef YAB_RUNTIME
-#define YAB_RUTTIME
+#define YAB_RUNTIME
 
+#include <string>
 #include <cstdio>
 using namespace std;
 

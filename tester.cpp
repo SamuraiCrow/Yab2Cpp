@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
 			helpText(argv[0]);
 			break;
 	}
-	cout << "vamanos!" <<endl;
+	cout << "program exiting" <<endl;
 	return 0;
 }
 
@@ -262,17 +262,25 @@ void shutDown()
 	{
 		output_cpp << "default:\nstate=UNDEFINED_STATE_ERROR;\n"
 			<< "break;\n}\n}\nreturn state;\n}"<< endl;
+		funcs_h.flush();
+		consts_h.flush();
+		heap_h.flush();
 	}
+	globals.clear();
+	locals.clear();
+	statics.clear();
 }
 
+shared_ptr<string>name;
+shared_ptr<variableType>v;
+shared_ptr<printSegment>print;
 void testInt()
 {
-	string name="v";
-	shared_ptr<variableType>v=
-		variableType::getOrCreateVar(name, T_INTVAR);
+	name=shared_ptr<string>(new string("v"));
+	v=variableType::getOrCreateVar(*name, T_INTVAR);
 	v->assignment(shared_ptr<expression>(new expression(
 		shared_ptr<operands>(new constOp("2", T_INT)))));
-	shared_ptr<printSegment>print=shared_ptr<printSegment>(
+	print=shared_ptr<printSegment>(
 		new printSegment(shared_ptr<expression>(new expression(v))));
 	print->generate();
 	label::generateEnd();
