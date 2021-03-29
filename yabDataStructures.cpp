@@ -448,8 +448,11 @@ operands *expression::evaluate()
 	this->oper=O_TERM;
 	l->dispose();
 	delete left;
-	r->dispose();
-	delete right;
+	if (getRight()!=nullptr)
+	{
+		r->dispose();
+		delete right;
+	}
 	return this->op;
 }
 

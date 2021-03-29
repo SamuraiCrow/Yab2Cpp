@@ -312,8 +312,7 @@ public:
 	virtual void close();
 
 	explicit ifStatement(expression *e);
-	virtual ~ifStatement()
-	{}
+	virtual ~ifStatement();
 };
 
 /* looping constructs */
@@ -326,8 +325,7 @@ public:
 	virtual void close(expression *e);
 
 	explicit repeatLoop();
-	virtual ~repeatLoop()
-	{}
+	virtual ~repeatLoop();
 };
 
 class doLoop:public codeType
@@ -339,8 +337,7 @@ public:
 	virtual void close();
 
 	explicit doLoop();
-	virtual ~doLoop()
-	{}
+	virtual ~doLoop();
 };
 
 class whileLoop:public codeType
@@ -354,8 +351,7 @@ public:
 	virtual void close();
 
 	explicit whileLoop(expression *e);
-	virtual ~whileLoop()
-	{}
+	virtual ~whileLoop();
 };
 
 class variableType:public operands
@@ -401,8 +397,7 @@ public:
 
 	explicit forLoop(variableType *v, expression *start, expression *stop,
 		expression *stepVal=nullptr);
-	virtual ~forLoop()
-	{}
+	virtual ~forLoop();
 };
 
 class fn:codeType

@@ -140,6 +140,7 @@ void ifStatement::alternative(expression *e)
 {
 	done->generateJumpTo();
 	this->chain->generate();
+	delete this->chain;
 	this->chain=nullptr;
 	if(e!=nullptr)
 	{
@@ -154,6 +155,12 @@ void ifStatement::close()
 	/* elsif ended without else in between */
 	if(this->chain)error(E_BAD_SYNTAX);
 	this->done->generate();
+}
+
+ifStatement::~ifStatement()
+{
+	delete this->redo;
+	delete this->done;
 }
 
 /* Loop definitions */
@@ -176,6 +183,12 @@ void repeatLoop::close(expression *e)
 	loopEnd->generate();
 }
 
+repeatLoop::~repeatLoop()
+{
+	delete loopStart;
+	delete loopEnd;
+}
+
 doLoop::doLoop():codeType(T_DOLOOP)
 {
 	this->loopStart=new label();
@@ -192,6 +205,12 @@ void doLoop::close()
 {
 	this->loopStart->generateJumpTo();
 	this->loopEnd->generate();
+}
+
+doLoop::~doLoop()
+{
+	delete loopStart;
+	delete loopEnd;
 }
 
 whileLoop::whileLoop(expression *e):codeType(T_WHILELOOP)
@@ -215,6 +234,14 @@ void whileLoop::close()
 	loopContinue->generateCondJump(cond);
 	loopEnd->generate();
 }
+
+whileLoop::~whileLoop() 
+{
+	delete loopContinue;
+	delete loopStart;
+	delete loopEnd;
+}
+
 
 forLoop::forLoop(variableType *v, expression *start, expression *stop,
 	expression *stepVal):codeType(T_FORLOOP)
@@ -266,4 +293,11 @@ void forLoop::close()
 	expression *stepper=new expression(new expression(var), O_PLUS, step);
 	var->assignment(stepper);
 	infrastructure->close();
+}
+
+forLoop::~forLoop()
+{
+	delete startTemp;
+	delete stopTemp;
+	delete infrastructure;
 }
