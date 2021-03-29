@@ -299,12 +299,26 @@ void testString()
 	delete print;
 }
 
+void testFloat()
+{
+	string name=string("floater");
+	v=variableType::getOrCreateVar(name, T_FLOATVAR);
+	v->assignment(new expression(new constOp("3.14159265", T_FLOAT)));
+	print=new printSegment(new expression(v), S_COMMA);
+	print->generate();
+	delete print;
+	print=new printSegment(new expression(new constOp(" is pi", T_STRING)));
+	print->generate();
+	delete print;
+}
+
 /* open files and compile */
 void compile()
 {
 	setUp();
 	testInt();
 	testString();
+	testFloat();
 	label::generateEnd();
 	shutDown();
 }

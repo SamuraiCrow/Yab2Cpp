@@ -43,7 +43,7 @@ void printSegment::generate()
 	case S_SEMICOLON:
 		return;
 	case S_COMMA:
-		output_cpp << "putc('\\t');\n";
+		output_cpp << "putchar('\\t');\n";
 		return;
 	default:
 		error(E_BAD_SYNTAX);
