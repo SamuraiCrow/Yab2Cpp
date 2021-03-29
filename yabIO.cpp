@@ -22,7 +22,7 @@ void printSegment::generate()
 		switch (op->getSimpleVarType())
 		{
 		case T_STRINGVAR:
-			output_cpp << "puts(" << op->boxName() << ");\n";
+			output_cpp << "puts(" << op->boxName() << ".c_str());\n";
 			break;
 		case T_INTVAR:
 			output_cpp << "printf(\"%d\", " << op->boxName() << ");\n";

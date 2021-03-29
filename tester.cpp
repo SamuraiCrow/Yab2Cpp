@@ -283,15 +283,28 @@ void testInt()
 	v->assignment(new expression(new constOp("2", T_INT)));
 	print=new printSegment(new expression(v));
 	print->generate();
-	label::generateEnd();
+	delete print;
+}
+
+void testString()
+{
+	string name=string("name1");
+	v=variableType::getOrCreateVar(name, T_STRINGVAR);
+	v->assignment(new expression(new constOp("Hello", T_STRING)));
+	print=new printSegment(new expression(v), S_SEMICOLON);
+	print->generate();
+	delete print;
+	print=new printSegment(new expression(new constOp(" world!", T_STRING)));
+	print->generate();
+	delete print;
 }
 
 /* open files and compile */
 void compile()
 {
 	setUp();
-
 	testInt();
-
+	testString();
+	label::generateEnd();
 	shutDown();
 }
