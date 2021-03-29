@@ -9,8 +9,8 @@
 #include "yab2cpp.h"
 
 /* static initializers */
-unordered_map<string, shared_ptr<fn> > fn::functions;
-list<shared_ptr<fn> >fn::callStack;
+unordered_map<string, unique_ptr<fn> > fn::functions;
+list<fn *>fn::callStack;
 unsigned int fn::nextID=0;
 
 /* function definitions */
@@ -29,50 +29,48 @@ void fn::dumpCallStack()
 	} while(i!=callStack.rend());
 }
 
-shared_ptr<fn>fn::getCurrentSub()
+fn *fn::getCurrentSub()
 {
-	list<shared_ptr<fn> >callStack;
 	return callStack.back();
 }
 
-void fn::generateOnNSub(shared_ptr<expression>e, unsigned int skip)
+void fn::generateOnNSub(expression *e, unsigned int skip)
 {
-	shared_ptr<label>r=shared_ptr<label>(new label());
-	shared_ptr<fn> self=shared_ptr<fn>(new fn(r));
+	label *r=new label();
+	fn *self=new fn(r);
 	fn::callStack.push_back(self);
 	label::generateOnNTo(e, skip);
 	r->generate();
 }
 
-void fn::generateGosub(shared_ptr<label> sub)
+void fn::generateGosub(label *sub)
 {
-	shared_ptr<label>r=shared_ptr<label>(new label());
-	shared_ptr<fn> self=shared_ptr<fn>(new fn(r));
+	label *r=new label();
+	fn *self=new fn(r);
 	fn::callStack.push_back(self);
 	sub->generateJumpTo();
 	r->generate();
 }
 
-fn::fn(shared_ptr<label>gosub):codeType(T_GOSUB)
+fn::fn(label *gosub):codeType(T_GOSUB)
 {
 	this->funcName="unnamed gosub";
 	this->ret=gosub;
 }
 
-shared_ptr<fn> fn::getSub(string &name)
+fn *fn::getSub(string &name)
 {
 	auto iter=fn::functions.find(name);
-	if(iter==fn::functions.end()) return NULL;
-	return iter->second;
+	if(iter==fn::functions.end()) return nullptr;
+	return iter->second.get();
 }
 
-shared_ptr<operands>fn::generateCall(string &name,
-	list<shared_ptr<operands> >&paramList)
+operands *fn::generateCall(string &name, list<operands *>&paramList)
 {
 	auto v=params.begin();
-	shared_ptr<operands>current;
-	shared_ptr<fn>g=fn::getSub(name);
-	if (g==NULL)
+	operands *current;
+	fn *g=fn::getSub(name);
+	if (g==nullptr)
 	{
 		error(E_SUBROUTINE_NOT_FOUND);
 	}
@@ -95,8 +93,7 @@ shared_ptr<operands>fn::generateCall(string &name,
 		{
 			error(E_TYPE_MISMATCH);
 		}
-		(*v)->assignment(shared_ptr<expression>(
-			new expression(current)));
+		(*v)->assignment(new expression(current));
 		++v;
 	}
 	/* pad remaining unassigned variables with empty values */
@@ -105,22 +102,13 @@ shared_ptr<operands>fn::generateCall(string &name,
 		switch ((*v)->getType())
 		{
 			case T_FLOATVAR:
-				(*v)->assignment(shared_ptr<expression>(
-					new expression(
-						shared_ptr<constOp>(new constOp("0.0", T_FLOAT))
-					)));
+				(*v)->assignment(new expression(new constOp("0.0", T_FLOAT)));
 				break;
 			case T_INTVAR:
-				(*v)->assignment(shared_ptr<expression>(
-					new expression(
-						shared_ptr<constOp>(new constOp("0", T_INT))
-					)));
+				(*v)->assignment(new expression(new constOp("0", T_INT)));
 				break;
 			case T_STRINGVAR:
-				(*v)->assignment(shared_ptr<expression>(
-					new expression(
-						shared_ptr<constOp>(new constOp("", T_STRING))
-					)));
+				(*v)->assignment(new expression(new constOp("", T_STRING)));
 			default:
 				error(E_INTERNAL);
 		}
@@ -133,7 +121,7 @@ shared_ptr<operands>fn::generateCall(string &name,
 
 void fn::generateReturn()
 {
-	shared_ptr<fn>c=getCurrentSub();
+	fn *c=getCurrentSub();
 	switch(c->getType())
 	{
 		case T_UNKNOWNFUNC:
@@ -149,12 +137,13 @@ void fn::generateReturn()
 	}
 }
 
-void fn::generateReturn(shared_ptr<expression>expr)
+void fn::generateReturn(expression *expr)
 {
 	this->rc=expr->evaluate();
 	this->kind=rc->getSimpleVarType();
 	this->ret->generateJumpTo();
 	fn::callStack.pop_back();
+	delete expr;
 	switch (this->getType())
 	{
 		case T_UNKNOWNFUNC:
@@ -198,7 +187,7 @@ void fn::close()
 	scopeGlobal=true;
 }
 
-fn::fn(string &s, enum CODES t, shared_ptr<operands>returnCode):codeType(t)
+fn::fn(string &s, enum CODES t, operands *returnCode):codeType(t)
 {
 	/*check for nesting error */
 	if (!scopeGlobal) error(E_END_FUNCTION);
@@ -209,14 +198,14 @@ fn::fn(string &s, enum CODES t, shared_ptr<operands>returnCode):codeType(t)
 	/*define storage for locals*/
 	funcs_h << "struct f" << this->id <<"\n{\n";
 	/*define label space for return*/
-	this->ret=shared_ptr<label>(new label());
+	this->ret=new label();
 	/*allocate function name*/
-	fn::functions[s]=shared_ptr<fn>(this);
+	fn::functions[s]=unique_ptr<fn>(this);
 	/* initiate local scope */
 	scopeGlobal=false;
 	/*keep track of where the return code will be sent to*/
 	this->rc=returnCode;
 	/*allocate and generate start address label*/
-	this->startAddr=shared_ptr<label>(new label());
+	this->startAddr=new label();
 	startAddr->generate();
 }

@@ -10,7 +10,7 @@
 #include "runtime/runtime.h"
 
 /* static initializers */
-unordered_map<string, shared_ptr<label> > label::lookup;
+unordered_map<string, unique_ptr<label> > label::lookup;
 unsigned int label::nextID=START;
 
 /* base class of all the code structure types */
@@ -36,11 +36,11 @@ codeType::~codeType()
 }
 
 /* label definitions and helper routines */
-shared_ptr<label>label::find(string &s)
+label *label::find(string &s)
 {
 	unordered_map<string, shared_ptr<label> >lookup;
 	auto ret=label::lookup.find(s);
-	return(ret==label::lookup.end()?NULL:ret->second);
+	return(ret==label::lookup.end()?nullptr:ret->second.get());
 }
 
 void label::dumpLabels()
@@ -65,7 +65,7 @@ void label::generateJumpTo()
 }
 
 /* pass this as second parameter to generateOnNTo or generateOnNSub */
-unsigned int label::generateOnNSkip(list<shared_ptr<label> >&dest)
+unsigned int label::generateOnNSkip(list<label *>&dest)
 {
 	if (dest.size()<2)error(E_BAD_SYNTAX);
 	auto iter=dest.begin();
@@ -80,25 +80,33 @@ unsigned int label::generateOnNSkip(list<shared_ptr<label> >&dest)
 	return this->getID();
 }
 
-void label::generateOnNTo(shared_ptr<expression>e, unsigned int skip)
+void label::generateOnNTo(expression *e, unsigned int skip)
 {
-	shared_ptr<operands>o=e->evaluate();
+	operands *o=e->evaluate();
 	if (o->getType()==T_INT||o->getType()==T_INTVAR)
 	{
 		output_cpp<< "if(" << o->boxName() << ">=0 && "
 		    << o->boxName() << "<js" << skip << ")state=j["
 		    << o->boxName() << "];\nbreak;\n";
+		o->dispose();
+		delete e;
+		return;
 	}
+	error(E_TYPE_MISMATCH);
 }
 
-void label::generateCondJump(shared_ptr<expression>e)
+void label::generateCondJump(expression *e)
 {
-	shared_ptr<operands>o=e->evaluate();
+	operands *o=e->evaluate();
 	if (o->getType()==T_INT||o->getType()==T_INTVAR)
 	{
 		output_cpp<< "if(" << o->boxName() 
             << "!=0)state=" << this->getID() << ";\nbreak;\n";
+		o->dispose();
+		delete e;
+		return;
 	}
+	error(E_TYPE_MISMATCH);
 }
 
 void label::generate()
@@ -108,13 +116,13 @@ void label::generate()
 
 /* ifStatement definition */
 
-ifStatement::ifStatement(shared_ptr<expression>e):codeType(T_IF)
+ifStatement::ifStatement(expression *e):codeType(T_IF)
 {
-	this->redo=shared_ptr<label>(new label());
+	this->redo=new label();
 	redo->generate();
-	this->done=shared_ptr<label>(new label());
-	shared_ptr<expression>f=shared_ptr<expression>(new expression(e,O_NOT));
-	this->chain=shared_ptr<label>(new label());
+	this->done=new label();
+	expression *f=new expression(e,O_NOT);
+	this->chain=new label();
 	chain->generateCondJump(f);
 }
 
@@ -128,16 +136,15 @@ void ifStatement::generateContinue()
 	redo->generateJumpTo();
 }
 
-void ifStatement::alternative(shared_ptr<expression>e)
+void ifStatement::alternative(expression *e)
 {
 	done->generateJumpTo();
 	this->chain->generate();
-	this->chain=NULL;
-	if(e!=NULL)
+	this->chain=nullptr;
+	if(e!=nullptr)
 	{
-		this->chain=shared_ptr<label>(new label());
-		shared_ptr<expression>f=shared_ptr<expression>(
-			new expression(e,O_NOT));
+		this->chain=new label();
+		expression *f=new expression(e,O_NOT);
 		chain->generateCondJump(f);
 	}
 }
@@ -152,8 +159,8 @@ void ifStatement::close()
 /* Loop definitions */
 repeatLoop::repeatLoop():codeType(T_REPEATLOOP)
 {
-	this->loopStart=shared_ptr<label>(new label());
-	this->loopEnd=shared_ptr<label>(new label());
+	this->loopStart=new label();
+	this->loopEnd=new label();
 	loopStart->generate();
 }
 
@@ -162,17 +169,17 @@ void repeatLoop::generateBreak()
 	loopEnd->generateJumpTo();
 }
 
-void repeatLoop::close(shared_ptr<expression>e)
+void repeatLoop::close(expression *e)
 {
-	shared_ptr<expression>f=shared_ptr<expression>(new expression(e, O_NOT));
+	expression *f=new expression(e, O_NOT);
 	loopStart->generateCondJump(f);
 	loopEnd->generate();
 }
 
 doLoop::doLoop():codeType(T_DOLOOP)
 {
-	this->loopStart=shared_ptr<label>(new label());
-	this->loopEnd=shared_ptr<label>(new label());
+	this->loopStart=new label();
+	this->loopEnd=new label();
 	loopStart->generate();
 }
 
@@ -187,11 +194,11 @@ void doLoop::close()
 	this->loopEnd->generate();
 }
 
-whileLoop::whileLoop(shared_ptr<expression>e):codeType(T_WHILELOOP)
+whileLoop::whileLoop(expression *e):codeType(T_WHILELOOP)
 {
-	loopContinue=shared_ptr<label>(new label());
-	loopStart=shared_ptr<label>(new label());
-	loopEnd=shared_ptr<label>(new label());
+	loopContinue=new label();
+	loopStart=new label();
+	loopEnd=new label();
 	cond=e;
 	loopStart->generateJumpTo();
 	loopContinue->generate();
@@ -209,42 +216,34 @@ void whileLoop::close()
 	loopEnd->generate();
 }
 
-forLoop::forLoop(shared_ptr<variableType>v,
-	shared_ptr<expression>start, shared_ptr<expression>stop,
-	shared_ptr<expression>stepVal):codeType(T_FORLOOP)
+forLoop::forLoop(variableType *v, expression *start, expression *stop,
+	expression *stepVal):codeType(T_FORLOOP)
 {
 	/*v=start;
 	stopTemp=stop;*/
 	v->assignment(start);
 	stopTemp->assignment(stop);
 	/* if (v<stopTemp) */
-	shared_ptr<ifStatement>c=shared_ptr<ifStatement>(new ifStatement(
-		shared_ptr<expression>(new expression(shared_ptr<expression>(
-			new expression(v)),	O_LESS,	shared_ptr<expression>(
-			new expression(stopTemp))))));
+	ifStatement *c=new ifStatement(new expression(new expression(v), O_LESS,
+			new expression(stopTemp)));
 	/* startTemp=v;*/
-	startTemp->assignment(shared_ptr<expression>(new expression(v)));
+	startTemp->assignment(new expression(v));
 	/* else */
 	c->alternative();
 	/* startTemp=stopTemp;
 	stopTemp=v;*/
-	startTemp->assignment(shared_ptr<expression>(new expression(stopTemp)));
-	stopTemp->assignment(shared_ptr<expression>(new expression(v)));
+	startTemp->assignment(new expression(stopTemp));
+	stopTemp->assignment(new expression(v));
 	/* endif */
 	c->close();
 	/* while (v<=stopTemp && v>=startTemp) */
-	shared_ptr<expression>stopper1=shared_ptr<expression>(new expression(
-		shared_ptr<expression>(new expression(v)), O_LESS_EQUAL, 
-		shared_ptr<expression>(new expression(stopTemp))));
-	shared_ptr<expression>stopper2=shared_ptr<expression>(new expression(
-		shared_ptr<expression>(new expression(v)), O_GREATER_EQUAL, 
-		shared_ptr<expression>(new expression(startTemp))));
-	shared_ptr<expression>stopper=shared_ptr<expression>(new expression(
-		stopper1, O_AND, stopper2));
-	shared_ptr<whileLoop>infrastructure=shared_ptr<whileLoop>(new whileLoop(
-		shared_ptr<expression>(new expression(stopper, O_UNEQUAL,
-		shared_ptr<expression>(new expression(
-		shared_ptr<constOp>(new constOp("0", T_INT))))))));
+	expression *stopper1=new expression(new expression(v), O_LESS_EQUAL, 
+		new expression(stopTemp));
+	expression *stopper2=new expression(new expression(v), O_GREATER_EQUAL, 
+		new expression(startTemp));
+	expression *stopper=new expression(stopper1, O_AND, stopper2);
+	infrastructure=new whileLoop(new expression(stopper, O_UNEQUAL,
+		new expression(new constOp("0", T_INT))));
 	if (stepVal)
 	{
 		step=stepVal;
@@ -252,8 +251,7 @@ forLoop::forLoop(shared_ptr<variableType>v,
 	else
 	{
 		/* if not present "step" is assumed to be 1 */
-		step=shared_ptr<expression>(new expression(
-			shared_ptr<constOp>(new constOp("1", T_INT))));
+		step=new expression(new constOp("1", T_INT));
 	}
 }
 
@@ -265,8 +263,7 @@ void forLoop::generateBreak()
 void forLoop::close()
 {
 	/* var=var+step; */
-	shared_ptr<expression>stepper=shared_ptr<expression>(new expression(
-		shared_ptr<expression>(new expression(var)), O_PLUS, step));
+	expression *stepper=new expression(new expression(var), O_PLUS, step);
 	var->assignment(stepper);
 	infrastructure->close();
 }

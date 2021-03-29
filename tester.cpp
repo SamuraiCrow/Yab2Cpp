@@ -10,9 +10,9 @@
 #include "yab2cpp.h"
 #include <cassert>
 
-unordered_map<string, shared_ptr<variableType> >globals;
-unordered_map<string, shared_ptr<variableType> >locals;
-unordered_map<string, shared_ptr<variableType> >statics;
+unordered_map<string, unique_ptr<variableType> >globals;
+unordered_map<string, unique_ptr<variableType> >locals;
+unordered_map<string, unique_ptr<variableType> >statics;
 
 /* These correspond to the enum COMPILE_ERRORS. */
 const char *COMPILE_ERROR_NAMES[]={
@@ -27,7 +27,8 @@ const char *COMPILE_ERROR_NAMES[]={
 	"value returned from gosub call",
 	"undefined subroutine name",
 	"too many parameters in function call",
-	"value cannot be assigned"
+	"value cannot be assigned",
+	"undimensioned array or undeclared function"
 };
 
 /* These correspond to the types of enum TYPES. */
@@ -214,8 +215,8 @@ void setUp()
 
 [[noreturn]] void error(enum COMPILE_ERRORS e)
 {
-	cerr << COMPILE_ERROR_NAMES[e] << endl;
 	errorLevel=e;
+	shutDown();
 	exit(1);
 }
 
@@ -245,6 +246,8 @@ void shutDown()
 {
 	if  (errorLevel != E_OK) cerr << "\nERROR: " 
 		<< COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
+	logger("Purging tempVar queues");
+	tempVar::eraseQueues();
 	logger("Dumping stack.");
 	if (DUMP && (logfile)) fn::dumpCallStack();
 	if (DUMP)
@@ -271,17 +274,14 @@ void shutDown()
 	statics.clear();
 }
 
-shared_ptr<string>name;
-shared_ptr<variableType>v;
-shared_ptr<printSegment>print;
+variableType *v;
+printSegment *print;
 void testInt()
 {
-	name=shared_ptr<string>(new string("v"));
-	v=variableType::getOrCreateVar(*name, T_INTVAR);
-	v->assignment(shared_ptr<expression>(new expression(
-		shared_ptr<operands>(new constOp("2", T_INT)))));
-	print=shared_ptr<printSegment>(
-		new printSegment(shared_ptr<expression>(new expression(v))));
+	string name=string("v");
+	v=variableType::getOrCreateVar(name, T_INTVAR);
+	v->assignment(new expression(new constOp("2", T_INT)));
+	print=new printSegment(new expression(v));
 	print->generate();
 	label::generateEnd();
 }

@@ -7,10 +7,11 @@
 **
 */
 #include "yab2cpp.h"
+#include <cassert>
 
-unordered_map<string, shared_ptr<variableType> >globals;
-unordered_map<string, shared_ptr<variableType> >locals;
-unordered_map<string, shared_ptr<variableType> >statics;
+unordered_map<string, unique_ptr<variableType> >globals;
+unordered_map<string, unique_ptr<variableType> >locals;
+unordered_map<string, unique_ptr<variableType> >statics;
 
 /* These correspond to the enum COMPILE_ERRORS. */
 const char *COMPILE_ERROR_NAMES[]={
@@ -25,7 +26,8 @@ const char *COMPILE_ERROR_NAMES[]={
 	"value returned from gosub call",
 	"undefined subroutine name",
 	"too many parameters in function call",
-	"value cannot be assigned"
+	"value cannot be assigned",
+	"undimensioned array or undeclared function"
 };
 
 /* These correspond to the types of enum TYPES. */
@@ -92,7 +94,6 @@ void shutDown();
 /* process command line parameters */
 int main(int argc, char *argv[])
 {
-	atexit(shutDown);
 	switch (argc)
 	{
 		case 1:
@@ -150,6 +151,7 @@ int main(int argc, char *argv[])
 			helpText(argv[0]);
 			break;
 	}
+	cout << "program exiting" <<endl;
 	return 0;
 }
 
@@ -177,15 +179,26 @@ void setUp()
 		funcs_h.open("output/functions.h");
 		consts_h.open("output/consts.h");
 		heap_h.open("output/heap.h");
-		output_cpp << "#include <runtime.h>\n#include \"consts.h\"\n"
+		output_cpp << "#include \"../runtime/runtime.h\"\n#include \"consts.h\"\n"
 			<< "#include \"heap.h\"\n#include \"functions.h\"\n"
-			<< "int main(int argc, char *argv[])\n{\n"
-			<< "unsigned int state=start;\nint run(){\nwhile (state>=start){\n"
-			<< "switch(state){\ncase start:" << endl;
-		if (DUMP)
-		{
-			varNames.open("varnames.txt");
-		}
+			<< "unsigned int state=START;\nunsigned int run(){\n"
+			<< "while (state>=START){\n"
+			<< "switch(state){\ncase START:" << endl;
+	}
+	else
+	{
+		output_cpp.open("/dev/null");
+		funcs_h.open("/dev/null");
+		consts_h.open("/dev/null");
+		heap_h.open("/dev/null");
+	}
+	if (DUMP)
+	{
+		varNames.open("varnames.log");
+	}
+	else
+	{
+		varNames.open("/dev/null");
 	}
 	if (DEBUG)
 	{
@@ -193,11 +206,16 @@ void setUp()
 		logfile.open("parse.log");
 		logger("Setup complete.");
 	}
+	else
+	{
+		logfile.open("/dev/null");
+	}
 }
 
 [[noreturn]] void error(enum COMPILE_ERRORS e)
 {
 	errorLevel=e;
+	shutDown();
 	exit(1);
 }
 
@@ -218,27 +236,41 @@ void logger(string s)
 	if (DEBUG)
 	{
 		indent();
-		logfile << s << endl;
+		logfile << s << "\n";
 	}
 }
 
 /* shutdown the compiler and exit */
 void shutDown()
 {
-	if  (errorLevel != E_OK) cerr << "\nERROR: " << COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
+	if  (errorLevel != E_OK) cerr << "\nERROR: " 
+		<< COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
+	logger("Purging tempVar queues");
+	tempVar::eraseQueues();
 	logger("Dumping stack.");
-	if (DUMP && (logfile))
+	if (DUMP && (logfile)) fn::dumpCallStack();
+	if (DUMP)
 	{
-		fn::dumpCallStack();
-	}
-	varNames << "Global Variables\n";
-	for(auto iter=globals.begin(); iter!=globals.end(); ++iter)
-	{
-		varNames << "variable " << iter->first << " has ID " << iter->second << "\n";
-	}
-	varNames << endl;
+		varNames << "Global Variables\n";
+		for(auto iter=globals.begin(); iter!=globals.end(); ++iter)
+		{
+			varNames << "variable " << iter->first 
+				<< " has ID " << iter->second->getID() << "\n";
+		}
+		varNames << endl;
 	label::dumpLabels();
-	output_cpp << "}\n}return state;\n}"<< endl;
+	}
+	if (COMPILE) 
+	{
+		output_cpp << "default:\nstate=UNDEFINED_STATE_ERROR;\n"
+			<< "break;\n}\n}\nreturn state;\n}"<< endl;
+		funcs_h.flush();
+		consts_h.flush();
+		heap_h.flush();
+	}
+	globals.clear();
+	locals.clear();
+	statics.clear();
 }
 
 /* open files and compile */
@@ -250,4 +282,3 @@ void compile()
 
 	shutDown();
 }
-

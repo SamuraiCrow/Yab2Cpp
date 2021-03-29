@@ -8,7 +8,7 @@
 */
 #include "yab2cpp.h"
 
-printSegment::printSegment(shared_ptr<expression>e, enum SEPARATORS s)
+printSegment::printSegment(expression *e, enum SEPARATORS s)
 {
 	cargo=e;
 	sep=s;
@@ -18,11 +18,11 @@ void printSegment::generate()
 {
 	if (cargo!=NULL)
 	{
-		shared_ptr<operands>op=cargo->evaluate();
+		operands *op=cargo->evaluate();
 		switch (op->getSimpleVarType())
 		{
 		case T_STRINGVAR:
-			output_cpp << "printf(\"%s\", " << op->boxName() << ");\n";
+			output_cpp << "puts(" << op->boxName() << ");\n";
 			break;
 		case T_INTVAR:
 			output_cpp << "printf(\"%d\", " << op->boxName() << ");\n";

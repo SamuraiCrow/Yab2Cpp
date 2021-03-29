@@ -29,9 +29,9 @@ extern ofstream heap_h;
 extern ofstream consts_h;
 extern ofstream logfile;
 extern ofstream varNames;
-extern unordered_map<string, shared_ptr<variableType> >globals;
-extern unordered_map<string, shared_ptr<variableType> >locals;
-extern unordered_map<string, shared_ptr<variableType> >statics;
+extern unordered_map<string, unique_ptr<variableType> >globals;
+extern unordered_map<string, unique_ptr<variableType> >locals;
+extern unordered_map<string, unique_ptr<variableType> >statics;
 extern const string CODETYPES[];
 extern const string TYPENAMES[];
 
@@ -41,7 +41,8 @@ extern const string TYPENAMES[];
 ** Note:  There must be a corresponding error message
 ** to each entry in the COMPILE_ERROR_NAMES constant array.
 */
-enum COMPILE_ERRORS {
+enum COMPILE_ERRORS:unsigned int
+{
 	E_OK=0,
 	E_BAD_SYNTAX,
 	E_TYPE_MISMATCH,
@@ -68,7 +69,7 @@ extern bool DEBUG;
 extern bool TRACE;
 
 /* list of all variableType and constant types */
-enum TYPES
+enum TYPES:unsigned int
 {
 	T_UNKNOWN=0,
 	T_NONE,
@@ -85,7 +86,7 @@ enum TYPES
 };
 
 /* list of all kinds of other code structures */
-enum CODES
+enum CODES:unsigned int
 {
 	T_PRINT=0,
 	T_PRINTSEGMENT,
@@ -116,14 +117,14 @@ typedef union
 }boxTypes;
 
 /* subtypes of the T_PRINTSEPARATOR type */
-enum SEPARATORS
+enum SEPARATORS:unsigned int
 {
 	S_COMMA,
 	S_SEMICOLON,
 	S_LINEFEED
 };
 
-enum SCOPES
+enum SCOPES:unsigned int
 {
 	S_UNKNOWN,
 	S_LOCAL,
@@ -131,7 +132,7 @@ enum SCOPES
 	S_GLOBAL
 };
 
-enum OPERATORS
+enum OPERATORS:unsigned int
 {
 	O_PLUS,
 	O_MINUS,
@@ -165,20 +166,46 @@ class operands
 	enum TYPES type;
 	unsigned int id;
 	static unsigned int nextID;
+
 	/* private constructor for parameter passing only */
 	explicit operands(unsigned int id, enum TYPES t);
+protected:
+	void generateBox(enum SCOPES s);
+	explicit operands(enum TYPES t);
+	virtual ~operands()
+	{}
 public:
 	enum TYPES getType() const {return type;}
 	unsigned int getID() const {return id;}
 
 	enum TYPES getSimpleVarType();
-	void generateBox(enum SCOPES s);
 	virtual string boxName();
-	enum TYPES coerceTypes();
+	static enum TYPES getSimpleVarType(enum TYPES t);
 
-	explicit operands(enum TYPES t);
-	virtual ~operands()
+	/* abstract factory */
+	static operands *createOp(enum TYPES t);
+	virtual void dispose();
+};
+
+class tempVar:public operands
+{
+	static list<tempVar *>intQueue;
+	static list<tempVar *>floatQueue;
+	static list<tempVar *>stringQueue;
+
+	/* private constructor called by getOrCreateVar */
+	explicit tempVar(enum TYPES t);
+	/* private destructor called by eraseQueues */
+	virtual ~tempVar()
 	{}
+public:
+	/* factory method to recycle existing tempVar */
+	static tempVar *getOrCreateVar(enum TYPES t);
+
+	/* purge queues at end of compile */
+	static void eraseQueues();
+	/* recycle tempVar in a queue */
+	virtual void dispose();
 };
 
 /* constant operands */
@@ -203,36 +230,23 @@ public:
 /* expression can be terminal or non-terminal node */
 class expression
 {
-	shared_ptr<operands>op;
-	shared_ptr<expression>left;
-	shared_ptr<expression>right;
+	operands *op;
+	expression *left;
+	expression *right;
 	enum OPERATORS oper;
 public:
 	enum OPERATORS getOp() const {return oper;}
-	shared_ptr<expression>getLeft() const {return left;}
-	shared_ptr<expression>getRight() const {return right;}
+	expression *getLeft() const {return left;}
+	expression *getRight() const {return right;}
 
 	bool isBinOp();
-	shared_ptr<operands>evaluate();
-	shared_ptr<operands>stringEval(shared_ptr<operands>l,
-		shared_ptr<operands>r);
+	operands *evaluate();
 
 	/* r is NULL for unary operators */
-	expression(shared_ptr<expression>l, enum OPERATORS o,
-		shared_ptr<expression>r=NULL)
-	{
-		this->left=l;
-		this->right=r;
-		this->oper=o;
-	}
+	expression(expression *l, enum OPERATORS o, expression *r=nullptr);
 
 	/* Terminal expression node */
-	expression(shared_ptr<operands>x)
-	{
-		op=x;
-		oper=O_TERM;
-	}
-	/*TODO: Recycle temporary variableTypes when not in debug mode*/
+	expression(operands *x);
 	virtual ~expression()
 	{}
 };
@@ -252,7 +266,7 @@ class label
 {
 	unsigned int id;
 	static unsigned int nextID;
-	static unordered_map<string, shared_ptr<label> > lookup;
+	static unordered_map<string, unique_ptr<label> > lookup;
 public:
 	static void dumpLabels();
 	static void generateEnd();
@@ -262,19 +276,18 @@ public:
 	void generateJumpTo();
 	/* pass generateOnNSkip as second paramater
 		to generateOnNTo or generateOnNSub */
-	unsigned int generateOnNSkip(list<shared_ptr<label> >&dest);
-	static void generateOnNTo(shared_ptr<expression>e, unsigned int skip);
-	void generateCondJump(shared_ptr<expression>e);
+	unsigned int generateOnNSkip(list<label *>&dest);
+	static void generateOnNTo(expression *e, unsigned int skip);
+	void generateCondJump(expression *e);
 	void generate();
 	
-	static shared_ptr<label>find(string &s);
+	static label *find(string &s);
 
 	label(){this->id = ++nextID;}
 	label(string &s)
 	{
-		unordered_map<string, shared_ptr<label> >lookup;
 		label();
-		label::lookup[s]=shared_ptr<label>(this);
+		label::lookup[s]=unique_ptr<label>(this);
 	}
 
 	virtual ~label()
@@ -285,20 +298,20 @@ public:
 class ifStatement:public codeType
 {
 	/* for continue command */
-	shared_ptr<label>redo;
+	label *redo;
 	/* for break or after "then" condition */
-	shared_ptr<label>done;
+	label *done;
 	/* For elsif command */
-	shared_ptr<label>chain;
+	label *chain;
 public:
 	void generateContinue();
 	virtual void generateBreak();
 	/* enable else or elsif condition */
-	void alternative(shared_ptr<expression>e=NULL);
+	void alternative(expression *e=nullptr);
 	/* end if */
 	virtual void close();
 
-	explicit ifStatement(shared_ptr<expression>e);
+	explicit ifStatement(expression *e);
 	virtual ~ifStatement()
 	{}
 };
@@ -306,11 +319,11 @@ public:
 /* looping constructs */
 class repeatLoop:public codeType
 {
-	shared_ptr<label>loopStart;
-	shared_ptr<label>loopEnd;
+	label *loopStart;
+	label *loopEnd;
 public:
 	virtual void generateBreak();
-	virtual void close(shared_ptr<expression>e);
+	virtual void close(expression *e);
 
 	explicit repeatLoop();
 	virtual ~repeatLoop()
@@ -319,8 +332,8 @@ public:
 
 class doLoop:public codeType
 {
-	shared_ptr<label>loopStart;
-	shared_ptr<label>loopEnd;
+	label *loopStart;
+	label *loopEnd;
 public:
 	virtual void generateBreak();
 	virtual void close();
@@ -332,15 +345,15 @@ public:
 
 class whileLoop:public codeType
 {
-	shared_ptr<label>loopContinue;
-	shared_ptr<label>loopStart;
-	shared_ptr<label>loopEnd;
-	shared_ptr<expression>cond;
+	label *loopContinue;
+	label *loopStart;
+	label *loopEnd;
+	expression *cond;
 public:
 	virtual void generateBreak();
 	virtual void close();
 
-	explicit whileLoop(shared_ptr<expression>e);
+	explicit whileLoop(expression *e);
 	virtual ~whileLoop()
 	{}
 };
@@ -349,9 +362,9 @@ class variableType:public operands
 {
 	enum SCOPES myScope;
 public:
-	static shared_ptr<variableType>getOrCreateVar(string &name, enum TYPES t);
+	static variableType *getOrCreateVar(string &name, enum TYPES t);
 
-	void assignment(shared_ptr<expression>value);
+	void assignment(expression *value);
 	/* always call generateBox() after new variableType() */
 	variableType(enum SCOPES s, string &name, enum TYPES t);
 	variableType();
@@ -364,11 +377,10 @@ class arrayType:public variableType
 	list<unsigned int> dimensions;
 public:
 	string generateBox(enum SCOPES s);
-	virtual string boxName(list<shared_ptr<operands> >indexes);
+	virtual string boxName(list<operands *>indexes);
 	virtual string boxName(){error(E_UNDIMENSIONED_ARRAY);}
 
-	void assignment(list<shared_ptr<expression> >indexes,
-		shared_ptr<expression>value);
+	void assignment(list<expression *>indexes, expression *value);
 
 	explicit arrayType(string &name, enum TYPES t, list<unsigned int>dim);
 		/*:variableType(scope, name, t);*/
@@ -378,67 +390,66 @@ public:
 
 class forLoop:public codeType
 {
-	shared_ptr<variableType>var;
-	shared_ptr<variableType>startTemp;
-	shared_ptr<variableType>stopTemp;
-	shared_ptr<whileLoop>infrastructure;
-	shared_ptr<expression>step;
+	variableType *var;
+	variableType *startTemp;
+	variableType *stopTemp;
+	whileLoop *infrastructure;
+	expression *step;
 public:
 	virtual void generateBreak();
 	virtual void close();
 
-	explicit forLoop(shared_ptr<variableType>v, shared_ptr<expression>start,
-		shared_ptr<expression>stop, shared_ptr<expression>stepVal=NULL);
+	explicit forLoop(variableType *v, expression *start, expression *stop,
+		expression *stepVal=nullptr);
 	virtual ~forLoop()
 	{}
 };
 
 class fn:codeType
 {
-	static unordered_map<string, shared_ptr<fn> > functions;
-	static list<shared_ptr<fn> > callStack;
+	static unordered_map<string, unique_ptr<fn> > functions;
+	static list<fn *> callStack;
 	static unsigned int nextID;
-	list<shared_ptr<variableType> >params;
+	list<variableType * >params;
 	string funcName;
 	unsigned int id;
 	enum TYPES kind;
-	shared_ptr<operands>rc;
+	operands *rc;
 	/* two labels common to all subroutine calls */
-	shared_ptr<label>startAddr;
-	shared_ptr<label>ret;
+	label *startAddr;
+	label *ret;
 	/* private constructor used by generateGosub and generateOnNSub*/
-	fn(shared_ptr<label>gosub);
+	fn(label *gosub);
 public:
 	static void dumpCallStack();
-	static shared_ptr<fn>getCurrentSub();
-	static shared_ptr<fn>getSub(string &name);
-	static void generateGosub(shared_ptr<label> sub);
+	static fn *getCurrentSub();
+	static fn *getSub(string &name);
+	static void generateGosub(label * sub);
 	/* must be called after label::generateOnNSkip */
-	static void generateOnNSub(shared_ptr<expression>e, unsigned int skip);
+	static void generateOnNSub(expression *e, unsigned int skip);
 
 	unsigned int getID() const {return this->id;}
 	int getNumParams() const {return this->params.size();}
-	void addParameter(shared_ptr<variableType>);
+	void addParameter(variableType *);
 
-	shared_ptr<operands>generateCall(string &name,
-		list<shared_ptr<operands> >&paramList);
-	void generateReturn(shared_ptr<expression>expr);
+	operands *generateCall(string &name, list<operands *>&paramList);
+	void generateReturn(expression *expr);
 	void generateReturn();
 	virtual void generateBreak();
 	virtual void close();
 
-	fn(string &name, enum CODES t, shared_ptr<operands>returnCode=NULL);
+	fn(string &name, enum CODES t, operands *returnCode=nullptr);
 	virtual ~fn()
 	{}
 };
 
 class printSegment
 {
-	shared_ptr<expression>cargo;
+	expression *cargo;
 	enum SEPARATORS sep;
 public:
 	void generate();
-	printSegment(shared_ptr<expression>e=NULL, enum SEPARATORS s=S_LINEFEED);
+	printSegment(expression *e=nullptr, enum SEPARATORS s=S_LINEFEED);
 	virtual ~printSegment()
 	{}
 };
