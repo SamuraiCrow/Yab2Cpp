@@ -10,35 +10,30 @@
 
 /* static initializers */
 unordered_map<string, unique_ptr<fn> > fn::functions;
-list<fn *>fn::callStack;
-unsigned int fn::nextID=0;
+unsigned int fn::nextID;
 
 /* function definitions */
-void fn::dumpCallStack()
+void fn::dumpFunctionIDs()
 {
-	auto i=callStack.rbegin();
-	if (i==callStack.rend())
+	varNames << "Function IDs\n";
+	auto i=functions.begin();
+	if (i==functions.end())
 	{
-		logfile << "call stack was empty\n";
+		varNames << "no named functions\n";
 		return;
 	}
 	do
 	{
-		logfile << (*i)->funcName << "\n";
+		varNames << "Function " << i->first
+			<< " has ID f" << i->second.get()->getID() << "\n";
 		++i;
-	} while(i!=callStack.rend());
-}
-
-fn *fn::getCurrentSub()
-{
-	return callStack.back();
+	} while (i!=functions.end());
 }
 
 void fn::generateOnNSub(expression *e, unsigned int skip)
 {
 	label *r=new label();
-	fn *self=new fn(r);
-	fn::callStack.push_back(self);
+	output_cpp << "callStack=new subroutine(" << r->getID() << ");\n";
 	label::generateOnNTo(e, skip);
 	r->generate();
 }
@@ -46,16 +41,9 @@ void fn::generateOnNSub(expression *e, unsigned int skip)
 void fn::generateGosub(label *sub)
 {
 	label *r=new label();
-	fn *self=new fn(r);
-	fn::callStack.push_back(self);
+	output_cpp << "callStack=new subroutine(" << r->getID() << ");\n";
 	sub->generateJumpTo();
 	r->generate();
-}
-
-fn::fn(label *gosub):codeType(T_GOSUB)
-{
-	this->funcName="unnamed gosub";
-	this->ret=gosub;
 }
 
 fn *fn::getSub(string &name)
@@ -65,32 +53,42 @@ fn *fn::getSub(string &name)
 	return iter->second.get();
 }
 
+void fn::addParameter(variableType *v)
+{
+	this->params.push_back(v);
+}
+
+/* TODO needs to be broken into smaller pieces */
 operands *fn::generateCall(string &name, list<operands *>&paramList)
 {
 	auto v=params.begin();
 	operands *current;
+	label *retAddr=new label();
 	fn *g=fn::getSub(name);
 	if (g==nullptr)
 	{
 		error(E_SUBROUTINE_NOT_FOUND);
 	}
-	if (paramList.size()>params.size())
+	if (paramList.size() > this->getNumParams())
 	{
 		error(E_TOO_MANY_PARAMETERS);
 	}
 	/* TODO CHECK THIS */
 	output_cpp << "struct f" << g->getID()
-		<< "*sub" << this->getID()
+		<< " *sub" << this->getID()
 		<< "= new struct f" << g->getID()
-		<< "();\n";
+		<< "(" << retAddr->getID() << ");\n"
+		<< "callStack = sub" <<this->getID() << ";\n";
 
 	/* TODO Make parameter processing a separate function */
 	while(paramList.size()>0)
 	{
-		current= paramList.front();
+		current=paramList.front();
 		paramList.pop_front();
 		if(current->getSimpleVarType()!=(*v)->getType())
 		{
+			cerr << "assigning " << TYPENAMES[current->getType()]
+				<< " to " << (*v)->getType() << endl;
 			error(E_TYPE_MISMATCH);
 		}
 		(*v)->assignment(new expression(current));
@@ -115,53 +113,44 @@ operands *fn::generateCall(string &name, list<operands *>&paramList)
 		++v;
 	}
 	g->startAddr->generateJumpTo();
-	g->ret->generate();
+	retAddr->generate();
 	return g->rc;
 }
 
+/* typeless return for gosub family */
 void fn::generateReturn()
 {
-	fn *c=getCurrentSub();
-	switch(c->getType())
-	{
-		case T_UNKNOWNFUNC:
-			/* set return type to NONE */
-			this->kind=T_NONE;
-			/*fallthrough*/
-		case T_GOSUB:
-			c->ret->generateJumpTo();
-			fn::callStack.pop_back();
-			break;
-		default:
-			error(E_TYPE_MISMATCH);
-	}
+	output_cpp << "state=subroutine::close();\nbreak;\n";
 }
 
 void fn::generateReturn(expression *expr)
 {
+	logger("evaluating expression");
 	this->rc=expr->evaluate();
+	logger("expression evaluated");
 	this->kind=rc->getSimpleVarType();
-	this->ret->generateJumpTo();
-	fn::callStack.pop_back();
-	delete expr;
+	logger("generating return");
+	generateReturn();
 	switch (this->getType())
 	{
 		case T_UNKNOWNFUNC:
-			return;
+			break;
 		case T_STRINGFUNC:
 			if (kind!=T_STRINGVAR) error(E_TYPE_MISMATCH);
-			return;
+			break;
 		case T_INTFUNC:
 			if (kind!=T_INTVAR&&kind!=T_FLOATVAR) error(E_TYPE_MISMATCH);
-			return;
+			break;
 		case T_FLOATFUNC:
 			if(kind!=T_FLOATVAR) error(E_TYPE_MISMATCH);
-			return;
+			break;
 		case T_GOSUB:
 			error(E_GOSUB_CANNOT_RETURN_VALUE);
 		default:
 			error(E_BAD_SYNTAX);
 	}
+	logger("deleting expression");
+	delete expr;
 }
 
 /* not allowed in function definitions directly */
@@ -181,31 +170,79 @@ void fn::close()
 		this->generateReturn();
 	}
 	funcs_h << "};\n";
+	if(DUMP)
+	{
+		auto i=locals.begin();
+		varNames << "\nLocal variables in function f" << this->getID() << "\n";
+		if(i==locals.end())
+		{
+			varNames << "no non-static locals\n";
+		}
+		else
+		{
+			do
+			{
+				varNames << "variable " << i->first	<< " has id v"
+					<< i->second.get()->getID() << "\n";
+				++i;
+			}while(i!=locals.end());
+		}
+		i=statics.begin();
+		varNames << "\n Static locals in function f" << this->getID() << "\n";
+		if (i==statics.end())
+		{
+			varNames << "no static locals\n";
+		}
+		else
+		{
+			do
+			{
+				varNames << "variable " << i->first << " has id v"
+					<< i->second.get()->getID() << "\n";
+				++i;
+			} while (i!=statics.end());
+		}
+	}
 	locals.clear();
 	statics.clear();
-	this->params.clear();
+	currentFunc=0;
 	scopeGlobal=true;
 }
 
-fn::fn(string &s, enum CODES t, operands *returnCode):codeType(t)
+fn *fn::declare(string &s, enum CODES t, operands *returnCode)
 {
 	/*check for nesting error */
 	if (!scopeGlobal) error(E_END_FUNCTION);
 	/*check if this function name is already used*/
 	if (fn::functions.find(s)!=fn::functions.end()) error(E_DUPLICATE_SYMBOL);
-	this->funcName=s;
+	logger("declaration name cleared");
+	fn *self=new fn(t, returnCode);
+	logger("fn allocated");
+	fn::functions.insert({s,unique_ptr<fn>(self)});
+	logger("fn inserted");
+	/* initiate local scope */
+	currentFunc=self->getID();
+	scopeGlobal=false;
+	return self;
+}
+
+/* standard constructor for block-formatted functions */
+fn::fn(enum CODES t, operands *returnCode)
+{
+	this->params.clear();
+	this->type=t;
 	this->id= ++nextID;
 	/*define storage for locals*/
-	funcs_h << "struct f" << this->id <<"\n{\n";
-	/*define label space for return*/
-	this->ret=new label();
-	/*allocate function name*/
-	fn::functions[s]=unique_ptr<fn>(this);
-	/* initiate local scope */
-	scopeGlobal=false;
+	if (t!=T_GOSUB) funcs_h << "struct f" << this->id <<":public subroutine\n{\n";
 	/*keep track of where the return code will be sent to*/
 	this->rc=returnCode;
 	/*allocate and generate start address label*/
 	this->startAddr=new label();
 	startAddr->generate();
+}
+
+fn::~fn()
+{
+	this->params.clear();
+	delete startAddr;
 }

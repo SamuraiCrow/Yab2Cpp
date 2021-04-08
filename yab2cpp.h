@@ -60,7 +60,9 @@ enum COMPILE_ERRORS:unsigned int
 
 extern enum COMPILE_ERRORS errorLevel;
 extern unsigned int indentLevel;
+/*TODO: Replace scopeGlobal with currentFunc==0*/
 extern bool scopeGlobal;
+extern unsigned int currentFunc;
 
 /* flags used internally by the compiler */
 extern bool COMPILE;
@@ -134,6 +136,7 @@ enum SCOPES:unsigned int
 
 enum OPERATORS:unsigned int
 {
+	O_NOP,
 	O_PLUS,
 	O_MINUS,
 	O_MULTIPLY,
@@ -247,8 +250,7 @@ public:
 
 	/* Terminal expression node */
 	expression(operands *x);
-	virtual ~expression()
-	{}
+	virtual ~expression();
 };
 
 /* parent class of all code types */
@@ -357,12 +359,14 @@ public:
 class variableType:public operands
 {
 	enum SCOPES myScope;
+	unsigned int localID;
 public:
 	static variableType *getOrCreateVar(string &name, enum TYPES t);
 
+	virtual string boxName();
 	void assignment(expression *value);
 	/* always call generateBox() after new variableType() */
-	variableType(enum SCOPES s, string &name, enum TYPES t);
+	variableType(enum SCOPES s, string &name, enum TYPES t, unsigned int fnID);
 	variableType();
 	~variableType()
 	{}
@@ -400,42 +404,43 @@ public:
 	virtual ~forLoop();
 };
 
-class fn:codeType
+class fn
 {
 	static unordered_map<string, unique_ptr<fn> > functions;
-	static list<fn *> callStack;
 	static unsigned int nextID;
 	list<variableType * >params;
-	string funcName;
 	unsigned int id;
+	enum CODES type;
 	enum TYPES kind;
 	operands *rc;
 	/* two labels common to all subroutine calls */
 	label *startAddr;
-	label *ret;
-	/* private constructor used by generateGosub and generateOnNSub*/
-	fn(label *gosub);
+	/* stamdard constructor called by declare */
+	fn(enum CODES t, operands *returnCode=nullptr);
 public:
-	static void dumpCallStack();
-	static fn *getCurrentSub();
 	static fn *getSub(string &name);
 	static void generateGosub(label * sub);
 	/* must be called after label::generateOnNSkip */
 	static void generateOnNSub(expression *e, unsigned int skip);
 
+	enum CODES getType() const {return this->type;}
 	unsigned int getID() const {return this->id;}
-	int getNumParams() const {return this->params.size();}
+	size_t getNumParams() const {return this->params.size();}
 	void addParameter(variableType *);
 
 	operands *generateCall(string &name, list<operands *>&paramList);
+	/* standard return is for call */
 	void generateReturn(expression *expr);
+	/* parameterless return is for gosub */
 	void generateReturn();
 	virtual void generateBreak();
 	virtual void close();
 
-	fn(string &name, enum CODES t, operands *returnCode=nullptr);
-	virtual ~fn()
-	{}
+	static fn *declare(string &name, enum CODES t, operands *returnCode=nullptr);
+	static void dumpFunctionIDs();
+
+	/* is called only by unique_ptr in static "functions" hash table */
+	virtual ~fn();
 };
 
 class printSegment

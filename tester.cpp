@@ -72,6 +72,7 @@ const string CODETYPES[]={
 enum COMPILE_ERRORS errorLevel=E_OK;
 unsigned int indentLevel=0;
 bool scopeGlobal=true;
+unsigned int currentFunc=0;
 
 bool COMPILE=false;
 bool DUMP=false;
@@ -201,7 +202,7 @@ void setUp()
 	{
 		varNames.open("/dev/null");
 	}
-	if (DEBUG)
+	if (DEBUG || TRACE)
 	{
 		/* dump identifier mode */
 		logfile.open("parse.log");
@@ -237,7 +238,7 @@ void logger(string s)
 	if (DEBUG)
 	{
 		indent();
-		logfile << s << "\n";
+		logfile << s << endl;
 	}
 }
 
@@ -246,12 +247,11 @@ void shutDown()
 {
 	if  (errorLevel != E_OK) cerr << "\nERROR: " 
 		<< COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
-	logger("Purging tempVar queues");
+	logger("Shutting Down:  Purging tempVar queues");
 	tempVar::eraseQueues();
-	logger("Dumping stack.");
-	if (DUMP && (logfile)) fn::dumpCallStack();
 	if (DUMP)
 	{
+		fn::dumpFunctionIDs();
 		varNames << "Global Variables\n";
 		for(auto iter=globals.begin(); iter!=globals.end(); ++iter)
 		{
@@ -276,18 +276,29 @@ void shutDown()
 
 variableType *v;
 printSegment *print;
+fn *func;
+operands *o;
+expression *e;
+list<operands *>p;
 void testInt()
 {
+	logger("testInt started");
 	string name=string("v");
 	v=variableType::getOrCreateVar(name, T_INTVAR);
-	v->assignment(new expression(new constOp("2", T_INT)));
+	logger("variable v created");
+	o=new constOp("2", T_INT);
+	logger("constOp 2 created");
+	v->assignment(new expression(o));
+	logger("assignment created");
 	print=new printSegment(new expression(v));
 	print->generate();
 	delete print;
+	logger("testInt cleared.");
 }
 
 void testString()
 {
+	logger("testString started");
 	string name=string("name1");
 	v=variableType::getOrCreateVar(name, T_STRINGVAR);
 	v->assignment(new expression(new constOp("Hello", T_STRING)));
@@ -297,10 +308,12 @@ void testString()
 	print=new printSegment(new expression(new constOp(" world!", T_STRING)));
 	print->generate();
 	delete print;
+	logger("testString cleared");
 }
 
 void testFloat()
 {
+	logger("testFloat started");
 	string name=string("floater");
 	v=variableType::getOrCreateVar(name, T_FLOATVAR);
 	v->assignment(new expression(new constOp("3.14159265", T_FLOAT)));
@@ -310,6 +323,40 @@ void testFloat()
 	print=new printSegment(new expression(new constOp(" is pi", T_STRING)));
 	print->generate();
 	delete print;
+	logger("testFloat cleared");
+}
+
+void testFunc()
+{
+	logger("testFunc started");
+	string name=string("square");
+	logger("aloha");
+	o = operands::createOp(T_FLOATVAR);
+	logger("mahalo");
+	func=fn::declare(name, T_FLOATFUNC, o);
+	logger("funkBeat");
+	name=string("radius");
+	v=variableType::getOrCreateVar(name, T_FLOATVAR);
+	logger("param made");
+	func->addParameter(v);
+	logger("param added");
+	e=new expression(new expression(v), O_MULTIPLY, new expression(v));
+	logger("expression made");
+	func->generateReturn(e);
+	logger("return generated");
+	func->close();
+	logger("function ended");
+	o=new constOp("3.0", T_FLOAT);
+	p.push_back(o);
+	name=string("square");
+	o=func->generateCall(name, p);
+	logger("call generated");
+	e=new expression(o);
+	print=new printSegment(e);
+	o->dispose();
+	print->generate();
+	delete print;
+	logger("testFunc cleared");
 }
 
 /* open files and compile */
@@ -319,6 +366,9 @@ void compile()
 	testInt();
 	testString();
 	testFloat();
+	testFunc();
 	label::generateEnd();
+	/*check for nesting error */
+	if (!scopeGlobal) error(E_END_FUNCTION);
 	shutDown();
 }

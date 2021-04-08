@@ -35,7 +35,7 @@ enum TYPES operands::getSimpleVarType(enum TYPES t)
 		case T_STRINGVAR:
 			return T_STRINGVAR;
 		default:
-		break;
+			break;
 	}
 	error(E_UNASSIGNABLE_TYPE);
 }
@@ -87,19 +87,18 @@ void operands::generateBox(enum SCOPES s)
 
 operands *operands::createOp(enum TYPES t)
 {
-	if (DEBUG)
+	if (TRACE)
 	{
-		operands *x=createOp(t);
-		x->generateBox(scopeGlobal?S_GLOBAL:S_LOCAL);
-		return x;
+		indent();
+		logfile << "Creating operand of type "
+			<< TYPENAMES[t] << endl;
 	}
 	return tempVar::getOrCreateVar(t);
 }
 
+/* only tempVar type needs disposing */
 void operands::dispose()
-{
-	delete this;
-}
+{}
 
 string operands::boxName()
 {
@@ -295,8 +294,8 @@ expression::expression(expression *l, enum OPERATORS o, expression *r)
 
 expression::expression(operands *x)
 {
-	op=x;
-	oper=O_TERM;
+	this->op=x;
+	this->oper=O_TERM;
 }
 
 /* binary vs. unary ops */
@@ -323,10 +322,14 @@ operands *expression::evaluate()
 	operands *l;
 	operands *r;
 	enum TYPES t;
+	logger("evaluating left");
 	l=this->getLeft()->evaluate();
+	logger("left evaluated");
 	if (this->isBinOp())
 	{
+		logger("evaluating right");
 		r=this->getRight()->evaluate();
+		logger("evaluated right");
 		enum TYPES lt=l->getSimpleVarType();
 		enum TYPES rt=r->getSimpleVarType();
 		if (lt==T_INTVAR && rt==T_FLOATVAR)
@@ -398,6 +401,7 @@ operands *expression::evaluate()
 		this->op=operands::createOp(t);
 		output_cpp << this->op->boxName() << "=" << l->boxName()
 			<< "*" << r->boxName() << ";\n";
+		logger("multiply done");
 		break;
 	case O_OR:
 		if (t!=T_INTVAR) error(E_TYPE_MISMATCH);
@@ -445,21 +449,32 @@ operands *expression::evaluate()
 		error(E_INTERNAL);
 	}
 	/* convert expression into single operand */
-	this->oper=O_TERM;
-	l->dispose();
+	logger("deleting left");
 	delete left;
-	if (getRight()!=nullptr)
+	logger("left deleted");
+	if (isBinOp())
 	{
-		r->dispose();
+		logger("deleting right");
 		delete right;
+		logger("right deleted");
 	}
+	this->oper=O_TERM;
 	return this->op;
 }
 
+expression::~expression()
+{
+	if(this->getOp()==O_TERM)
+	{
+		op->dispose();
+	}
+}
+
 /* variable definitions */
-variableType::variableType(enum SCOPES s, string &name, enum TYPES t):operands(t)
+variableType::variableType(enum SCOPES s, string &name, enum TYPES t, unsigned int fnID):operands(t)
 {
 	this->myScope=s;
+	this->localID=fnID;
 	switch (s)
 	{
 		case S_LOCAL:
@@ -481,6 +496,18 @@ variableType::variableType(enum SCOPES s, string &name, enum TYPES t):operands(t
 	}
 }
 
+string variableType::boxName()
+{
+	ostringstream ss;
+	if (myScope==S_LOCAL)
+	{
+		ss << "sub" << this->localID << "->v" << this->getID();
+		return ss.str();
+	}
+	ss << "v" << this->getID();
+	return ss.str();
+}
+
 variableType *variableType::getOrCreateVar(string &name, enum TYPES t)
 {
 	if (!scopeGlobal)
@@ -491,7 +518,15 @@ variableType *variableType::getOrCreateVar(string &name, enum TYPES t)
 		if(i!=statics.end())return i->second.get();
 	}
 	if (globals.find(name)!=globals.end())return globals[name].get();
-	variableType *v=new variableType(scopeGlobal?S_GLOBAL:S_LOCAL, name, t);
+	variableType *v;
+	if (scopeGlobal)
+	{
+		v=new variableType(S_GLOBAL, name, t, 0);
+	}
+	else
+	{
+		v=new variableType(S_LOCAL, name, t, currentFunc);
+	}
 	v->generateBox(scopeGlobal?S_GLOBAL:S_LOCAL);
 	return v;
 }
@@ -522,7 +557,6 @@ void variableType::assignment(expression *value)
 				<< op->boxName() << ";\n";
 			break;
 	}
-	op->dispose();
 	delete value;
 }
 
@@ -566,7 +600,7 @@ string arrayType::generateBox(enum SCOPES s)
 }
 
 arrayType::arrayType(string &name, enum TYPES t, list<unsigned int>dim):
-	variableType(S_GLOBAL, name, t)
+	variableType(S_GLOBAL, name, t, 0)
 {
 	this->dimensions=dim;
 }

@@ -71,6 +71,7 @@ const string CODETYPES[]={
 enum COMPILE_ERRORS errorLevel=E_OK;
 unsigned int indentLevel=0;
 bool scopeGlobal=true;
+unsigned int currentFunc=0;
 
 bool COMPILE=false;
 bool DUMP=false;
@@ -247,8 +248,6 @@ void shutDown()
 		<< COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
 	logger("Purging tempVar queues");
 	tempVar::eraseQueues();
-	logger("Dumping stack.");
-	if (DUMP && (logfile)) fn::dumpCallStack();
 	if (DUMP)
 	{
 		varNames << "Global Variables\n";
