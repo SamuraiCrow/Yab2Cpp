@@ -471,15 +471,14 @@ expression::~expression()
 }
 
 /* variable definitions */
-variableType::variableType(enum SCOPES s, string &name, enum TYPES t, unsigned int fnID):operands(t)
+variableType::variableType(enum SCOPES s, string &name, enum TYPES t, fn *fnHandle):operands(t)
 {
 	this->myScope=s;
-	this->localID=fnID;
+	this->handle=fnHandle;
 	switch (s)
 	{
 		case S_LOCAL:
-			if(locals.find(name)!=locals.end() ||
-				statics.find(name)!=statics.end() ) error(E_DUPLICATE_SYMBOL);
+			if(handle->getLocalVar(name)) error(E_DUPLICATE_SYMBOL);
 			locals[name]=unique_ptr<variableType>(this);
 			break;		
 		case S_GLOBAL:
@@ -487,9 +486,12 @@ variableType::variableType(enum SCOPES s, string &name, enum TYPES t, unsigned i
 			globals[name]=unique_ptr<variableType>(this);
 			break;
 		case S_STATIC:
-			if(locals.find(name)!=locals.end() ||
-				statics.find(name)!=statics.end() ) error(E_DUPLICATE_SYMBOL);
+			if(handle->getLocalVar(name)) error(E_DUPLICATE_SYMBOL);
 			statics[name]=unique_ptr<variableType>(this);
+			break;
+		case S_PARAMETER:
+			if (handle->getLocalVar(name)) error(E_DUPLICATE_SYMBOL);
+			/* parameter is added to function list by addParamter */
 			break;
 		default:
 			error(E_INTERNAL);
@@ -501,7 +503,7 @@ string variableType::boxName()
 	ostringstream ss;
 	if (myScope==S_LOCAL)
 	{
-		ss << "sub" << this->localID << "->v" << this->getID();
+		ss << "sub" << this->handle->getID() << "->v" << this->getID();
 		return ss.str();
 	}
 	ss << "v" << this->getID();
@@ -510,18 +512,17 @@ string variableType::boxName()
 
 variableType *variableType::getOrCreateVar(string &name, enum TYPES t)
 {
-	if (!scopeGlobal)
+	variableType *v;
+	if (currentFunc!=nullptr)
 	{
-		auto i=locals.find(name);
-		if(i!=locals.end())return i->second.get();
-		i=statics.find(name);
-		if(i!=statics.end())return i->second.get();
+		v=currentFunc->getLocalVar(name);
+		if (v!=nullptr) return v;
 	}
 	if (globals.find(name)!=globals.end())return globals[name].get();
-	variableType *v;
 	if (scopeGlobal)
 	{
-		v=new variableType(S_GLOBAL, name, t, 0);
+		v=new variableType(S_GLOBAL, name, t, nullptr);
+
 	}
 	else
 	{

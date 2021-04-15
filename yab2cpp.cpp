@@ -71,7 +71,7 @@ const string CODETYPES[]={
 enum COMPILE_ERRORS errorLevel=E_OK;
 unsigned int indentLevel=0;
 bool scopeGlobal=true;
-unsigned int currentFunc=0;
+fn *currentFunc=nullptr;
 
 bool COMPILE=false;
 bool DUMP=false;

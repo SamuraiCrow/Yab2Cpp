@@ -72,7 +72,7 @@ const string CODETYPES[]={
 enum COMPILE_ERRORS errorLevel=E_OK;
 unsigned int indentLevel=0;
 bool scopeGlobal=true;
-unsigned int currentFunc=0;
+fn *currentFunc=nullptr;
 
 bool COMPILE=false;
 bool DUMP=false;
@@ -336,9 +336,7 @@ void testFunc()
 	func=fn::declare(name, T_FLOATFUNC, o);
 	logger("funkBeat");
 	name=string("radius");
-	v=variableType::getOrCreateVar(name, T_FLOATVAR);
-	logger("param made");
-	func->addParameter(v);
+	func->addParameter(name, T_FLOATVAR);
 	logger("param added");
 	e=new expression(new expression(v), O_MULTIPLY, new expression(v));
 	logger("expression made");

@@ -53,8 +53,21 @@ fn *fn::getSub(string &name)
 	return iter->second.get();
 }
 
-void fn::addParameter(variableType *v)
+variableType *fn::getLocalVar(string &name)
 {
+	auto iter=this->parameters.find(name);
+	if (iter!=parameters.end()) return iter->second;
+	auto i=locals.find(name);
+	if (i!=locals.end()) return i->second.get();
+	i=statics.find(name);
+	if (i!=statics.end()) return i->second.get();
+	return nullptr;
+}
+
+void fn::addParameter(string &name, enum TYPES t)
+{
+	variableType *v=new variableType(S_PARAMETER, name, t, this);
+	this->parameters[name]=v;
 	this->params.push_back(v);
 }
 
@@ -205,7 +218,7 @@ void fn::close()
 	}
 	locals.clear();
 	statics.clear();
-	currentFunc=0;
+	currentFunc=nullptr;
 	scopeGlobal=true;
 }
 
@@ -221,7 +234,7 @@ fn *fn::declare(string &s, enum CODES t, operands *returnCode)
 	fn::functions.insert({s,unique_ptr<fn>(self)});
 	logger("fn inserted");
 	/* initiate local scope */
-	currentFunc=self->getID();
+	currentFunc=self;
 	scopeGlobal=false;
 	return self;
 }
@@ -243,6 +256,5 @@ fn::fn(enum CODES t, operands *returnCode)
 
 fn::~fn()
 {
-	this->params.clear();
 	delete startAddr;
 }

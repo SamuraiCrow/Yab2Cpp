@@ -10,6 +10,7 @@
 */
 #include <string>
 #include <list>
+#include <vector>
 #include <unordered_map>
 #include <memory>
 #include <iostream>
@@ -23,6 +24,7 @@ using namespace std;
 #define VER_RELEASE 1
 
 class variableType;
+class fn;
 extern ofstream output_cpp;
 extern ofstream funcs_h;
 extern ofstream heap_h;
@@ -60,9 +62,9 @@ enum COMPILE_ERRORS:unsigned int
 
 extern enum COMPILE_ERRORS errorLevel;
 extern unsigned int indentLevel;
-/*TODO: Replace scopeGlobal with currentFunc==0*/
+/*TODO: Replace scopeGlobal with currentFunc==nullptr*/
 extern bool scopeGlobal;
-extern unsigned int currentFunc;
+extern fn *currentFunc;
 
 /* flags used internally by the compiler */
 extern bool COMPILE;
@@ -111,13 +113,6 @@ enum CODES:unsigned int
 	T_UNKNOWNFUNC
 };
 
-typedef union
-{
-	double d;
-	int i;
-	string *s;
-}boxTypes;
-
 /* subtypes of the T_PRINTSEPARATOR type */
 enum SEPARATORS:unsigned int
 {
@@ -131,7 +126,8 @@ enum SCOPES:unsigned int
 	S_UNKNOWN,
 	S_LOCAL,
 	S_STATIC,
-	S_GLOBAL
+	S_GLOBAL,
+	S_PARAMETER
 };
 
 enum OPERATORS:unsigned int
@@ -169,11 +165,10 @@ class operands
 	enum TYPES type;
 	unsigned int id;
 	static unsigned int nextID;
-
-	/* private constructor for parameter passing only */
-	explicit operands(unsigned int id, enum TYPES t);
 protected:
 	void generateBox(enum SCOPES s);
+	/* constructor for parameter passing */
+	explicit operands(unsigned int id, enum TYPES t);
 	explicit operands(enum TYPES t);
 	virtual ~operands()
 	{}
@@ -359,14 +354,15 @@ public:
 class variableType:public operands
 {
 	enum SCOPES myScope;
-	unsigned int localID;
+	fn *handle;
 public:
 	static variableType *getOrCreateVar(string &name, enum TYPES t);
+	static variableType *cloneAttributes(variableType *v);
 
 	virtual string boxName();
 	void assignment(expression *value);
 	/* always call generateBox() after new variableType() */
-	variableType(enum SCOPES s, string &name, enum TYPES t, unsigned int fnID);
+	variableType(enum SCOPES s, string &name, enum TYPES t, fn *fnHandle);
 	variableType();
 	~variableType()
 	{}
@@ -408,7 +404,8 @@ class fn
 {
 	static unordered_map<string, unique_ptr<fn> > functions;
 	static unsigned int nextID;
-	list<variableType * >params;
+	unordered_map<string, variableType *>parameters;
+	vector<variableType *>params;
 	unsigned int id;
 	enum CODES type;
 	enum TYPES kind;
@@ -426,7 +423,8 @@ public:
 	enum CODES getType() const {return this->type;}
 	unsigned int getID() const {return this->id;}
 	size_t getNumParams() const {return this->params.size();}
-	void addParameter(variableType *);
+	variableType *getLocalVar(string &name);
+	void addParameter(string &name, enum TYPES t);
 
 	operands *generateCall(string &name, list<operands *>&paramList);
 	/* standard return is for call */
