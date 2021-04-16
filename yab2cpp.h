@@ -180,7 +180,6 @@ public:
 	virtual string boxName();
 	static enum TYPES getSimpleVarType(enum TYPES t);
 
-	/* abstract factory */
 	static operands *createOp(enum TYPES t);
 	virtual void dispose();
 };
@@ -410,7 +409,6 @@ class fn
 	enum CODES type;
 	enum TYPES kind;
 	operands *rc;
-	/* two labels common to all subroutine calls */
 	label *startAddr;
 	/* stamdard constructor called by declare */
 	fn(enum CODES t, operands *returnCode=nullptr);

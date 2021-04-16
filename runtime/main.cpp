@@ -7,16 +7,16 @@
 
 struct subroutine *callStack=nullptr;
 
-subroutine::subroutine(enum STATES r)
+subroutine::subroutine(unsigned int r)
 {
 	this->ret=r;
 	this->called=callStack;
 }
 
-enum STATES subroutine::close()
+unsigned int subroutine::close()
 {
 	if (callStack==nullptr) return STACK_UNDERFLOW_ERROR;
-	enum STATES r=callStack->ret;
+	unsigned int r=callStack->ret;
 	struct subroutine *l=callStack->called;
 	delete callStack;
 	callStack=l;

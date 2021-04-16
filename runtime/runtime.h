@@ -21,11 +21,11 @@ enum STATES:unsigned int
 class subroutine
 {
     struct subroutine *called;
-    enum STATES ret;
+    unsigned int ret;
 
 public:
-    static enum STATES close();
-    subroutine(enum STATES r);
+    static unsigned int close();
+    subroutine(unsigned int r);
     virtual ~subroutine()
     {}
 };

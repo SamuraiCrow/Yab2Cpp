@@ -247,8 +247,7 @@ void shutDown()
 {
 	if  (errorLevel != E_OK) cerr << "\nERROR: " 
 		<< COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
-	logger("Shutting Down:  Purging tempVar queues");
-	tempVar::eraseQueues();
+	logger("Shutting Down");
 	if (DUMP)
 	{
 		fn::dumpFunctionIDs();
@@ -259,8 +258,11 @@ void shutDown()
 				<< " has ID " << iter->second->getID() << "\n";
 		}
 		varNames << endl;
-	label::dumpLabels();
+		label::dumpLabels();
 	}
+	globals.clear();
+	locals.clear();
+	statics.clear();
 	if (COMPILE) 
 	{
 		output_cpp << "default:\nstate=UNDEFINED_STATE_ERROR;\n"
@@ -269,9 +271,7 @@ void shutDown()
 		consts_h.flush();
 		heap_h.flush();
 	}
-	globals.clear();
-	locals.clear();
-	statics.clear();
+	tempVar::eraseQueues();
 }
 
 variableType *v;
@@ -365,6 +365,7 @@ void compile()
 	testString();
 	testFloat();
 	testFunc();
+	logger("generating end");
 	label::generateEnd();
 	/*check for nesting error */
 	if (!scopeGlobal) error(E_END_FUNCTION);

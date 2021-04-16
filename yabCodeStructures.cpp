@@ -45,13 +45,12 @@ label *label::find(string &s)
 
 void label::dumpLabels()
 {
-	varNames << "Global Labels\n\n";
+	varNames << "Global Labels\n" << endl;
 	for(auto iter=lookup.begin(); iter!=lookup.end(); ++iter)
 	{
 		varNames << "label " << iter->first << " has ID "
-			<< iter->second->getID() << "\n" ;
+			<< iter->second->getID() << endl ;
 	}
-	varNames << endl;
 }
 
 void label::generateEnd()

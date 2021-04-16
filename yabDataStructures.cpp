@@ -73,6 +73,7 @@ void operands::generateBox(enum SCOPES s)
 	switch (s)
 	{
 		case S_LOCAL:
+		case S_PARAMETER:
 			funcs_h << ss.str();
 			return;
 		case S_GLOBAL:
@@ -202,35 +203,38 @@ void tempVar::eraseQueues()
 		i=intQueue.back();
 		if (DUMP)
 		{
-			logfile << "variable " << i->boxName()
-				<< " is a temporary integer\n";
+			varNames << "variable " << i->boxName()
+				<< " is a temporary integer" << endl;
 		}
-		delete i;
 		intQueue.pop_back();
+		delete i;
 	}
+	cerr << "intger temps purged" << endl;
 	while(!floatQueue.empty())
 	{
 		i=floatQueue.back();
 		if (DUMP)
 		{
-			logfile << "variable " << i->boxName()
-				<< " is a temporary floating point\n";
+			varNames << "variable " << i->boxName()
+				<< " is a temporary floating point" << endl;
 		}
-		delete i;
 		floatQueue.pop_back();
+		delete i;
 	}
+	cerr << "floating point temps purged" << endl;
 	while(!stringQueue.empty())
 	{
 		i=stringQueue.back();
 		if (DUMP)
 		{
-			logfile << "variable " << i->boxName()
-				<< " is a temporary string\n";
+			varNames << "variable " << i->boxName()
+				<< " is a temporary string" << endl;
 		}
-		delete i;
 		stringQueue.pop_back();
+		delete i;
 	}
-	if (DUMP) logfile << endl;
+	cerr << "string temps purged" << endl;
+	if (DUMP) varNames << endl;
 }
 
 void constOp::processConst(unsigned int i)

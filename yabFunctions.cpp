@@ -87,11 +87,12 @@ operands *fn::generateCall(string &name, list<operands *>&paramList)
 		error(E_TOO_MANY_PARAMETERS);
 	}
 	/* TODO CHECK THIS */
-	output_cpp << "struct f" << g->getID()
-		<< " *sub" << this->getID()
-		<< "= new struct f" << g->getID()
+	heap_h << "struct f" << g->getID()
+		<< " *sub" << this->getID() << ";\n";
+	output_cpp << " sub" << this->getID()
+		<< "= new f" << g->getID()
 		<< "(" << retAddr->getID() << ");\n"
-		<< "callStack = sub" <<this->getID() << ";\n";
+		<< "callStack = sub" << this->getID() << ";\n";
 
 	/* TODO Make parameter processing a separate function */
 	while(paramList.size()>0)
@@ -143,7 +144,8 @@ void fn::generateReturn(expression *expr)
 	logger("expression evaluated");
 	this->kind=rc->getSimpleVarType();
 	logger("generating return");
-	generateReturn();
+	output_cpp << "state=f" << this->getID()
+		<< "::close();\nbreak;\n";
 	switch (this->getType())
 	{
 		case T_UNKNOWNFUNC:
@@ -189,31 +191,45 @@ void fn::close()
 		varNames << "\nLocal variables in function f" << this->getID() << "\n";
 		if(i==locals.end())
 		{
-			varNames << "no non-static locals\n";
+			varNames << "no non-static locals" << endl;
 		}
 		else
 		{
 			do
 			{
 				varNames << "variable " << i->first	<< " has id v"
-					<< i->second.get()->getID() << "\n";
+					<< i->second.get()->getID() << endl;
 				++i;
 			}while(i!=locals.end());
 		}
 		i=statics.begin();
-		varNames << "\n Static locals in function f" << this->getID() << "\n";
+		varNames << "\nStatic locals in function f" << this->getID() << "\n";
 		if (i==statics.end())
 		{
-			varNames << "no static locals\n";
+			varNames << "no static locals" << endl;
 		}
 		else
 		{
 			do
 			{
 				varNames << "variable " << i->first << " has id v"
-					<< i->second.get()->getID() << "\n";
+					<< i->second.get()->getID() << endl;
 				++i;
 			} while (i!=statics.end());
+		}
+		auto iter=this->parameters.begin();
+		if (iter==this->parameters.end())
+		{
+			varNames << "no parameters passed to function f" << this->getID() << endl;
+		}
+		else
+		{
+			do
+			{
+				varNames << "paramater " << iter->first << "has id v"
+					<< iter->second->getID() << endl;
+			} while (iter!=this->parameters.end());
+			
 		}
 	}
 	locals.clear();
@@ -246,7 +262,12 @@ fn::fn(enum CODES t, operands *returnCode)
 	this->type=t;
 	this->id= ++nextID;
 	/*define storage for locals*/
-	if (t!=T_GOSUB) funcs_h << "struct f" << this->id <<":public subroutine\n{\n";
+	if (t!=T_GOSUB)
+	{
+		funcs_h << "struct f" << this->id <<":public subroutine\n{\nf"
+			<< this->id << "(unsigned int x):subroutine(x)\n{}\n"
+			<< "virtual ~f" << this->id <<"()\n{}\n\n";
+	}
 	/*keep track of where the return code will be sent to*/
 	this->rc=returnCode;
 	/*allocate and generate start address label*/

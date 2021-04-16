@@ -246,8 +246,7 @@ void shutDown()
 {
 	if  (errorLevel != E_OK) cerr << "\nERROR: " 
 		<< COMPILE_ERROR_NAMES[errorLevel] << "\n\n" << endl;
-	logger("Purging tempVar queues");
-	tempVar::eraseQueues();
+	logger("Shutting Down\n");
 	if (DUMP)
 	{
 		varNames << "Global Variables\n";
@@ -257,7 +256,7 @@ void shutDown()
 				<< " has ID " << iter->second->getID() << "\n";
 		}
 		varNames << endl;
-	label::dumpLabels();
+		label::dumpLabels();
 	}
 	if (COMPILE) 
 	{
@@ -270,6 +269,7 @@ void shutDown()
 	globals.clear();
 	locals.clear();
 	statics.clear();
+	tempVar::eraseQueues();
 }
 
 /* open files and compile */
