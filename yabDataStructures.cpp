@@ -505,7 +505,7 @@ variableType::variableType(enum SCOPES s, string &name, enum TYPES t, fn *fnHand
 string variableType::boxName()
 {
 	ostringstream ss;
-	if (myScope==S_LOCAL)
+	if (myScope==S_LOCAL || myScope==S_PARAMETER)
 	{
 		ss << "sub" << this->handle->getID() << "->v" << this->getID();
 		return ss.str();

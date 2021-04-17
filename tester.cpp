@@ -338,6 +338,7 @@ void testFunc()
 	name=string("radius");
 	func->addParameter(name, T_FLOATVAR);
 	logger("param added");
+	v=variableType::getOrCreateVar(name, T_FLOATVAR);
 	e=new expression(new expression(v), O_MULTIPLY, new expression(v));
 	logger("expression made");
 	func->generateReturn(e);

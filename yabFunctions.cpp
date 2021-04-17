@@ -67,6 +67,7 @@ variableType *fn::getLocalVar(string &name)
 void fn::addParameter(string &name, enum TYPES t)
 {
 	variableType *v=new variableType(S_PARAMETER, name, t, this);
+	v->generateBox(S_PARAMETER);
 	this->parameters[name]=v;
 	this->params.push_back(v);
 }
@@ -226,30 +227,35 @@ void fn::close()
 		{
 			do
 			{
-				varNames << "paramater " << iter->first << "has id v"
+				varNames << "paramater " << iter->first << " has id v"
 					<< iter->second->getID() << endl;
+				++iter;
 			} while (iter!=this->parameters.end());
 			
 		}
 	}
 	locals.clear();
 	statics.clear();
+	skipDef->generate();
 	currentFunc=nullptr;
 	scopeGlobal=true;
 }
 
 fn *fn::declare(string &s, enum CODES t, operands *returnCode)
 {
+	label *sd=new label();
 	/*check for nesting error */
 	if (!scopeGlobal) error(E_END_FUNCTION);
 	/*check if this function name is already used*/
 	if (fn::functions.find(s)!=fn::functions.end()) error(E_DUPLICATE_SYMBOL);
 	logger("declaration name cleared");
+	sd->generateJumpTo();
 	fn *self=new fn(t, returnCode);
 	logger("fn allocated");
 	fn::functions.insert({s,unique_ptr<fn>(self)});
 	logger("fn inserted");
 	/* initiate local scope */
+	self->skipDef=sd;
 	currentFunc=self;
 	scopeGlobal=false;
 	return self;
@@ -278,4 +284,5 @@ fn::fn(enum CODES t, operands *returnCode)
 fn::~fn()
 {
 	delete startAddr;
+	delete skipDef;
 }

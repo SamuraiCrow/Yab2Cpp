@@ -166,7 +166,6 @@ class operands
 	unsigned int id;
 	static unsigned int nextID;
 protected:
-	void generateBox(enum SCOPES s);
 	/* constructor for parameter passing */
 	explicit operands(unsigned int id, enum TYPES t);
 	explicit operands(enum TYPES t);
@@ -179,6 +178,7 @@ public:
 	enum TYPES getSimpleVarType();
 	virtual string boxName();
 	static enum TYPES getSimpleVarType(enum TYPES t);
+	void generateBox(enum SCOPES s);
 
 	static operands *createOp(enum TYPES t);
 	virtual void dispose();
@@ -410,6 +410,7 @@ class fn
 	enum TYPES kind;
 	operands *rc;
 	label *startAddr;
+	label *skipDef;
 	/* stamdard constructor called by declare */
 	fn(enum CODES t, operands *returnCode=nullptr);
 public:
