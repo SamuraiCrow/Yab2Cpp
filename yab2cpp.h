@@ -244,7 +244,8 @@ public:
 
 	/* Terminal expression node */
 	expression(operands *x);
-	virtual ~expression();
+	virtual ~expression()
+	{};
 };
 
 /* parent class of all code types */

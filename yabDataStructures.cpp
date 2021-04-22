@@ -466,14 +466,6 @@ operands *expression::evaluate()
 	return this->op;
 }
 
-expression::~expression()
-{
-	if(this->getOp()==O_TERM)
-	{
-		op->dispose();
-	}
-}
-
 /* variable definitions */
 variableType::variableType(enum SCOPES s, string &name, enum TYPES t, fn *fnHandle):operands(t)
 {
