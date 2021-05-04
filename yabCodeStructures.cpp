@@ -117,12 +117,14 @@ void label::generate()
 
 ifStatement::ifStatement(expression *e):codeType(T_IF)
 {
+	logger("creating ifStatement");
 	this->redo=new label();
 	redo->generate();
 	this->done=new label();
 	expression *f=new expression(e,O_NOT);
 	this->chain=new label();
 	chain->generateCondJump(f);
+	logger("ifStatement created");
 }
 
 void ifStatement::generateBreak()
@@ -151,9 +153,11 @@ void ifStatement::alternative(expression *e)
 
 void ifStatement::close()
 {
+	logger("closing ifStatement");
 	/* elsif ended without else in between */
 	if(this->chain)error(E_BAD_SYNTAX);
 	this->done->generate();
+	logger("ifStatement closed");
 }
 
 ifStatement::~ifStatement()
@@ -214,12 +218,14 @@ doLoop::~doLoop()
 
 whileLoop::whileLoop(expression *e):codeType(T_WHILELOOP)
 {
+	logger("creating whileLoop");
 	loopContinue=new label();
 	loopStart=new label();
 	loopEnd=new label();
 	cond=e;
 	loopStart->generateJumpTo();
 	loopContinue->generate();
+	logger("whileLoop created");
 }
 
 void whileLoop::generateBreak()
@@ -229,9 +235,11 @@ void whileLoop::generateBreak()
 
 void whileLoop::close()
 {
+	logger("closing whileLoop");
 	loopStart->generate();
 	loopContinue->generateCondJump(cond);
 	loopEnd->generate();
+	logger("whileLoop cleared");
 }
 
 whileLoop::~whileLoop() 
@@ -245,40 +253,57 @@ whileLoop::~whileLoop()
 forLoop::forLoop(variableType *v, expression *start, expression *stop,
 	expression *stepVal):codeType(T_FORLOOP)
 {
+	logger("creating forLoop");
+	startTemp=tempVar::getOrCreateVar(v->getSimpleVarType());
+	stopTemp=tempVar::getOrCreateVar(v->getSimpleVarType());
+	logger("forLoop assignments");
 	/*v=start;
 	stopTemp=stop;*/
 	v->assignment(start);
+	logger("start evaluated");
 	stopTemp->assignment(stop);
 	/* if (v<stopTemp) */
+	logger("creating embedded if statement in forLoop");
 	ifStatement *c=new ifStatement(new expression(new expression(v), O_LESS,
 			new expression(stopTemp)));
 	/* startTemp=v;*/
 	startTemp->assignment(new expression(v));
 	/* else */
+	logger("ending then clause");
 	c->alternative();
 	/* startTemp=stopTemp;
 	stopTemp=v;*/
 	startTemp->assignment(new expression(stopTemp));
 	stopTemp->assignment(new expression(v));
 	/* endif */
+	logger("ending else clause");
 	c->close();
+	delete c;
+	logger("embedded if statement cleared");
+	this->var=v;
+
 	/* while (v<=stopTemp && v>=startTemp) */
+	logger("generating range check for forLoop");
 	expression *stopper1=new expression(new expression(v), O_LESS_EQUAL, 
 		new expression(stopTemp));
 	expression *stopper2=new expression(new expression(v), O_GREATER_EQUAL, 
 		new expression(startTemp));
 	expression *stopper=new expression(stopper1, O_AND, stopper2);
+	logger("generating while portion of forLoop");
 	infrastructure=new whileLoop(new expression(stopper, O_UNEQUAL,
 		new expression(new constOp("0", T_INT))));
 	if (stepVal)
 	{
+		logger("explicit step value");
 		step=stepVal;
 	}
 	else
 	{
+		logger("implicit step value");
 		/* if not present "step" is assumed to be 1 */
 		step=new expression(new constOp("1", T_INT));
 	}
+	logger("forLoop definition cleared");
 }
 
 void forLoop::generateBreak()
@@ -288,15 +313,17 @@ void forLoop::generateBreak()
 
 void forLoop::close()
 {
+	logger("closing forLoop");
 	/* var=var+step; */
 	expression *stepper=new expression(new expression(var), O_PLUS, step);
 	var->assignment(stepper);
+	logger("step applied");
 	infrastructure->close();
+	startTemp->dispose();
+	stopTemp->dispose();
+	delete infrastructure;
+	logger("forLoop closed");
 }
 
 forLoop::~forLoop()
-{
-	delete startTemp;
-	delete stopTemp;
-	delete infrastructure;
-}
+{}

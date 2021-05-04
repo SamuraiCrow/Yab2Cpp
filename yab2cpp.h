@@ -24,6 +24,7 @@ using namespace std;
 #define VER_RELEASE 1
 
 class variableType;
+class expression;
 class fn;
 extern ofstream output_cpp;
 extern ofstream funcs_h;
@@ -180,6 +181,7 @@ public:
 	static enum TYPES getSimpleVarType(enum TYPES t);
 	void generateBox(enum SCOPES s);
 
+	void assignment(expression *value);
 	static operands *createOp(enum TYPES t);
 	virtual void dispose();
 };
@@ -216,6 +218,7 @@ class constOp:public operands
 	void processConst(unsigned int i);
 	/* const that must be defined still */
 	void processConst(const string &s);
+	void assignment(expression *v);
 public:
 	virtual string boxName(){return box;}
 
@@ -360,7 +363,6 @@ public:
 	static variableType *cloneAttributes(variableType *v);
 
 	virtual string boxName();
-	void assignment(expression *value);
 	/* always call generateBox() after new variableType() */
 	variableType(enum SCOPES s, string &name, enum TYPES t, fn *fnHandle);
 	variableType();
@@ -387,8 +389,8 @@ public:
 class forLoop:public codeType
 {
 	variableType *var;
-	variableType *startTemp;
-	variableType *stopTemp;
+	tempVar *startTemp;
+	tempVar *stopTemp;
 	whileLoop *infrastructure;
 	expression *step;
 public:

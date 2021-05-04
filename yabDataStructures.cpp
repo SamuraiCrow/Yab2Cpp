@@ -121,6 +121,35 @@ string operands::boxName()
 	}
 }
 
+void operands::assignment(expression *value)
+{
+	operands *op=value->evaluate();
+	enum TYPES t=op->getSimpleVarType();
+	switch (this->getType())
+	{
+		case T_FLOATVAR:
+			if (t==T_INTVAR)
+			{
+				output_cpp << this->boxName() << "="
+					<< "static_cast<double>("
+					<< op->boxName() << ");\n";
+			}
+			else
+			{
+				if (t!=T_FLOATVAR) error(E_TYPE_MISMATCH);
+			}
+			output_cpp << this->boxName() << "="
+				<< op->boxName() << ";\n";
+			break;
+		default:
+			if (t!=this->getType()) error(E_TYPE_MISMATCH);
+			output_cpp << this->boxName() << "="
+				<< op->boxName() << ";\n";
+			break;
+	}
+	delete value;
+}
+
 tempVar::tempVar(enum TYPES t):operands(t)
 {
 	generateBox(S_GLOBAL);
@@ -250,6 +279,10 @@ void constOp::processConst( const string &s)
 	consts_h << box << "=" << s << ";\n";
 }
 
+void constOp::assignment(expression *v)
+{
+	error(E_BAD_SYNTAX);
+}
 
 /* constructor for constOp */
 constOp::constOp(const string &s, enum TYPES t):operands(t)
@@ -526,35 +559,6 @@ variableType *variableType::getOrCreateVar(string &name, enum TYPES t)
 	}
 	v->generateBox(scopeGlobal?S_GLOBAL:S_LOCAL);
 	return v;
-}
-
-void variableType::assignment(expression *value)
-{
-	operands *op=value->evaluate();
-	enum TYPES t=op->getSimpleVarType();
-	switch (this->getType())
-	{
-		case T_FLOATVAR:
-			if (t==T_INTVAR)
-			{
-				output_cpp << this->boxName() << "="
-					<< "static_cast<double>("
-					<< op->boxName() << ");\n";
-			}
-			else
-			{
-				if (t!=T_FLOATVAR) error(E_TYPE_MISMATCH);
-			}
-			output_cpp << this->boxName() << "="
-				<< op->boxName() << ";\n";
-			break;
-		default:
-			if (t!=this->getType()) error(E_TYPE_MISMATCH);
-			output_cpp << this->boxName() << "="
-				<< op->boxName() << ";\n";
-			break;
-	}
-	delete value;
 }
 
 string arrayType::boxName(list<operands *>indexes)

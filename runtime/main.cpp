@@ -5,7 +5,7 @@
 */
 #include "runtime.h"
 
-struct subroutine *callStack=nullptr;
+subroutine *callStack=nullptr;
 
 subroutine::subroutine(unsigned int r)
 {
@@ -17,7 +17,7 @@ unsigned int subroutine::close()
 {
 	if (callStack==nullptr) return STACK_UNDERFLOW_ERROR;
 	unsigned int r=callStack->ret;
-	struct subroutine *l=callStack->called;
+	subroutine *l=callStack->called;
 	delete callStack;
 	callStack=l;
 	return r;

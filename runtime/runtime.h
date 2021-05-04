@@ -20,7 +20,7 @@ enum STATES:unsigned int
 
 class subroutine
 {
-    struct subroutine *called;
+    subroutine *called;
     unsigned int ret;
 
 public:
@@ -30,7 +30,7 @@ public:
     {}
 };
 
-extern struct subroutine *callStack;
+extern subroutine *callStack;
 
 /* function prototype */
 unsigned int run();

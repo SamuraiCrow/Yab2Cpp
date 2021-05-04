@@ -330,11 +330,8 @@ void testFunc()
 {
 	logger("testFunc started");
 	string name=string("square");
-	logger("aloha");
 	o = operands::createOp(T_FLOATVAR);
-	logger("mahalo");
 	func=fn::declare(name, T_FLOATFUNC, o);
-	logger("funkBeat");
 	name=string("radius");
 	func->addParameter(name, T_FLOATVAR);
 	logger("param added");
@@ -358,6 +355,27 @@ void testFunc()
 	logger("testFunc cleared");
 }
 
+void testForLoop()
+{
+	logger("testForLoop started");
+	string name=string("counter");
+	logger("creating counter variable");
+	v=variableType::getOrCreateVar(name, T_INTVAR);
+	logger("initializing forLoop");
+	forLoop *f=new forLoop(v,new expression(new constOp("1", T_INT)), 
+		new expression(new constOp("10", T_INT)),
+		new expression(new constOp("2", T_INT)));
+	logger("printing variable");
+	print=new printSegment(new expression(v), S_LINEFEED);
+	print->generate();
+	logger("closing testForLoop");
+	f->close();
+	delete f;
+	logger("disposing of counter variable");
+	v->dispose();
+	logger("testForLoop cleared");
+}
+
 /* open files and compile */
 void compile()
 {
@@ -366,6 +384,7 @@ void compile()
 	testString();
 	testFloat();
 	testFunc();
+	testForLoop();
 	logger("generating end");
 	label::generateEnd();
 	/*check for nesting error */
