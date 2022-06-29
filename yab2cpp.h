@@ -286,7 +286,7 @@ public:
 	label(){this->id = ++nextID;}
 	label(string &s)
 	{
-		label();
+		this->id = ++nextID;
 		label::lookup[s]=unique_ptr<label>(this);
 	}
 
@@ -411,7 +411,7 @@ class fn
 	unsigned int id;
 	enum CODES type;
 	enum TYPES kind;
-	operands *rc;
+	operands *rc; // Return Code
 	label *startAddr;
 	label *skipDef;
 	/* stamdard constructor called by declare */

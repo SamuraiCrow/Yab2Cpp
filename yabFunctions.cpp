@@ -75,6 +75,8 @@ void fn::addParameter(string &name, enum TYPES t)
 /* TODO needs to be broken into smaller pieces */
 operands *fn::generateCall(string &name, list<operands *>&paramList)
 {
+	static unsigned int callID;
+	unsigned int callEnumerator;
 	auto v=params.begin();
 	operands *current;
 	label *retAddr=new label();
@@ -88,12 +90,13 @@ operands *fn::generateCall(string &name, list<operands *>&paramList)
 		error(E_TOO_MANY_PARAMETERS);
 	}
 	/* TODO CHECK THIS */
+	callEnumerator = ++callID; 
 	heap_h << "struct f" << g->getID()
-		<< " *sub" << this->getID() << ";\n";
+		<< " *sub" << callEnumerator << ";\n";
 	output_cpp << " sub" << this->getID()
 		<< "= new f" << g->getID()
 		<< "(" << retAddr->getID() << ");\n"
-		<< "callStack = sub" << this->getID() << ";\n";
+		<< "callStack = sub" << callEnumerator << ";\n";
 
 	/* TODO Make parameter processing a separate function */
 	while(paramList.size()>0)
@@ -243,10 +246,11 @@ void fn::close()
 
 fn *fn::declare(string &s, enum CODES t, operands *returnCode)
 {
+	/* sd is the skipDef of this function */
 	label *sd=new label();
-	/*check for nesting error */
+	/* check for nesting error */
 	if (!scopeGlobal) error(E_END_FUNCTION);
-	/*check if this function name is already used*/
+	/* check if this function name is already used */
 	if (fn::functions.find(s)!=fn::functions.end()) error(E_DUPLICATE_SYMBOL);
 	logger("declaration name cleared");
 	sd->generateJumpTo();
@@ -281,6 +285,7 @@ fn::fn(enum CODES t, operands *returnCode)
 	startAddr->generate();
 }
 
+/* Destructor is called only at the end of the unique pointer's existence */
 fn::~fn()
 {
 	delete startAddr;

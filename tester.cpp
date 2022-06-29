@@ -276,10 +276,10 @@ void shutDown()
 
 variableType *v;
 printSegment *print;
-fn *func;
 operands *o;
 expression *e;
 list<operands *>p;
+
 void testInt()
 {
 	logger("testInt started");
@@ -331,7 +331,7 @@ void testFunc()
 	logger("testFunc started");
 	string name=string("square");
 	o = operands::createOp(T_FLOATVAR);
-	func=fn::declare(name, T_FLOATFUNC, o);
+	fn *func=fn::declare(name, T_FLOATFUNC, o);
 	name=string("radius");
 	func->addParameter(name, T_FLOATVAR);
 	logger("param added");
@@ -349,10 +349,43 @@ void testFunc()
 	logger("call generated");
 	e=new expression(o);
 	print=new printSegment(e);
+	print->generate();
 	o->dispose();
+	delete print;
+	p.clear();
+	logger("testFunc cleared");
+}
+
+void testIf()
+{
+	logger("testIf started");
+	string name=string("check");
+	logger("name declared");
+	fn *func2=fn::declare(name, T_UNKNOWNFUNC);
+	logger("check fn declared");
+	string name2=string("checker");
+	func2->addParameter(name2, T_FLOATVAR);
+	logger("checker added");
+	o=operands::createOp(T_FLOATVAR);
+	e=new expression(new expression(o), O_LESS, new expression(new constOp("0.0", T_FLOAT)));
+	ifStatement *i=new ifStatement(e);
+	print=new printSegment(new expression(new constOp("less", T_STRING)));
 	print->generate();
 	delete print;
-	logger("testFunc cleared");
+	i->alternative();
+	print=new printSegment(new expression(new constOp("greater or equal", T_STRING)));
+	print->generate();
+	delete print;
+	i->close();
+	func2->close();
+	delete i;
+	p.push_back(new constOp("0.0", T_FLOAT));
+	func2->generateCall(name, p);
+	p.clear();
+	p.push_back(new constOp("-0.1", T_FLOAT));
+	func2->generateCall(name, p);
+	p.clear();
+	logger("testIf cleared");
 }
 
 void testForLoop()
@@ -384,6 +417,7 @@ void compile()
 	testString();
 	testFloat();
 	testFunc();
+	testIf();
 	testForLoop();
 	logger("generating end");
 	label::generateEnd();

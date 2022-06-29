@@ -100,7 +100,7 @@ void label::generateCondJump(expression *e)
 	if (o->getType()==T_INT||o->getType()==T_INTVAR)
 	{
 		output_cpp<< "if(" << o->boxName() 
-            << "!=0)state=" << this->getID() << ";\nbreak;\n";
+            << "!=0){state=" << this->getID() << ";break;}\n";
 		o->dispose();
 		delete e;
 		return;
