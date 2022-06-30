@@ -9,9 +9,9 @@
 #include "yab2cpp.h"
 
 /* prototypes for local functions */
-string formatString(enum SEPARATORS s);
-string formatInt(enum SEPARATORS s);
-string formatFloat(enum SEPARATORS s);
+const char *formatString(enum SEPARATORS s);
+const char *formatInt(enum SEPARATORS s);
+const char *formatFloat(enum SEPARATORS s);
 
 printSegment::printSegment(expression *e, enum SEPARATORS s)
 {
@@ -59,50 +59,50 @@ void printSegment::generate()
 	}
 }
 
-string formatString(enum SEPARATORS s)
+const char *formatString(enum SEPARATORS s)
 {
 	switch (s)
 	{
 	case S_LINEFEED:
-		return string("%s\\n");
+		return "%s\\n";
 	case S_COMMA:
-		return string("%s\\t");
+		return "%s\\t";
 	case S_SEMICOLON:
-		return string("%s");
+		return "%s";
 	default:
 		error(E_BAD_SYNTAX);
-		return string("");
+		return "";
 	}
 }
 
-string formatInt(enum SEPARATORS s)
+const char *formatInt(enum SEPARATORS s)
 {
 	switch (s)
 	{
 	case S_LINEFEED:
-		return string("%d\\n");
+		return "%d\\n";
 	case S_COMMA:
-		return string("%d\\t");
+		return "%d\\t";
 	case S_SEMICOLON:
-		return string("%d");
+		return "%d";
 	default:
 		error(E_BAD_SYNTAX);
-		return string("");
+		return "";
 	}
 }
 
-string formatFloat(enum SEPARATORS s)
+const char *formatFloat(enum SEPARATORS s)
 {
 	switch (s)
 	{
 	case S_LINEFEED:
-		return string("%f\\n");
+		return "%f\\n";
 	case S_COMMA:
-		return string("%f\\t");
+		return "%f\\t";
 	case S_SEMICOLON:
-		return string("%f");
+		return "%f";
 	default:
 		error(E_BAD_SYNTAX);
-		return string("");
+		return "";
 	}
 }
