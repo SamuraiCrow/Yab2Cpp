@@ -75,8 +75,7 @@ void fn::addParameter(string &name, enum TYPES t)
 /* TODO needs to be broken into smaller pieces */
 operands *fn::generateCall(string &name, list<operands *>&paramList)
 {
-	static unsigned int callID;
-	unsigned int callEnumerator;
+	static unsigned int callEnumerator;
 	auto v=params.begin();
 	operands *current;
 	label *retAddr=new label();
@@ -90,10 +89,10 @@ operands *fn::generateCall(string &name, list<operands *>&paramList)
 		error(E_TOO_MANY_PARAMETERS);
 	}
 	/* TODO CHECK THIS */
-	callEnumerator = ++callID; 
+	++callEnumerator;
 	heap_h << "struct f" << g->getID()
 		<< " *sub" << callEnumerator << ";\n";
-	output_cpp << " sub" << this->getID()
+	output_cpp << " sub" << callEnumerator
 		<< "= new f" << g->getID()
 		<< "(" << retAddr->getID() << ");\n"
 		<< "callStack = sub" << callEnumerator << ";\n";

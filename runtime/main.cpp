@@ -4,6 +4,7 @@
 **  by Samuel D. Crow
 */
 #include "runtime.h"
+#include <cstdio>
 
 subroutine *callStack=nullptr;
 
@@ -26,9 +27,18 @@ unsigned int subroutine::close()
 int main(int argc, char *argv[])
 {
 	unsigned int ret=run();
-	if (ret!=EXIT)
-	{
-		return 1;
+	switch (ret) {
+		case STACK_UNDERFLOW_ERROR:
+			puts("Stack Underflow\n");
+			break;
+		case UNDEFINED_STATE_ERROR:
+			puts("Program encountered an undefined state\n");
+			break;
+		case EXIT:
+			return 0;
+		default:
+			puts("Illegal fallthrough encountered\n");
+			break;
 	}
-	return 0;
+	return 1;
 }
