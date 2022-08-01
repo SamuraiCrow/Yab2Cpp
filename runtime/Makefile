@@ -6,9 +6,11 @@ CFLAGS += -std=c++11
 #CFLAGS += -Os
 LFLAGS := 
 
+.PHONY: all
 all: binaries
 
-binaries: bin_main
+.PHONY: binaries
+binaries: main
 
 SRC := ../output/
 
@@ -16,7 +18,7 @@ OUTPUT_DEPS := $(SRC)consts.h $(SRC)heap.h $(SRC)functions.h runtime.h $(SRC)out
 
 MAIN_OBJ_DEPS := output.o main.o
 
-bin_main: $(MAIN_OBJ_DEPS)
+main: $(MAIN_OBJ_DEPS)
 	$(CC) -o main $(MAIN_OBJ_DEPS)
 
 main.o: $(OUTPUT_DEPS)

@@ -11,14 +11,14 @@ subroutine *callStack=nullptr;
 subroutine::subroutine(unsigned int r)
 {
 	this->ret=r;
-	this->called=callStack;
+	this->callStackNode=callStack;
 }
 
 unsigned int subroutine::close()
 {
 	if (callStack==nullptr) return STACK_UNDERFLOW_ERROR;
 	unsigned int r=callStack->ret;
-	subroutine *l=callStack->called;
+	subroutine *l=callStack->callStackNode;
 	delete callStack;
 	callStack=l;
 	return r;

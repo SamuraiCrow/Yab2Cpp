@@ -28,7 +28,8 @@ const char *COMPILE_ERROR_NAMES[]={
 	"undefined subroutine name",
 	"too many parameters in function call",
 	"value cannot be assigned",
-	"undimensioned array or undeclared function"
+	"undimensioned array or undeclared function",
+	"return code was not specified on function"
 };
 
 /* These correspond to the types of enum TYPES. */

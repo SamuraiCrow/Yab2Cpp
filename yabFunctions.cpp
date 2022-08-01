@@ -11,6 +11,7 @@
 /* static initializers */
 unordered_map<string, unique_ptr<fn> > fn::functions;
 unsigned int fn::nextID;
+unsigned int callEnumerator=0;
 
 /* function definitions */
 void fn::dumpFunctionIDs()
@@ -75,7 +76,7 @@ void fn::addParameter(string &name, enum TYPES t)
 /* TODO needs to be broken into smaller pieces */
 operands *fn::generateCall(string &name, list<operands *>&paramList)
 {
-	static unsigned int callEnumerator;
+	++callEnumerator;
 	auto v=params.begin();
 	operands *current;
 	label *retAddr=new label();
@@ -88,11 +89,9 @@ operands *fn::generateCall(string &name, list<operands *>&paramList)
 	{
 		error(E_TOO_MANY_PARAMETERS);
 	}
-	/* TODO CHECK THIS */
-	++callEnumerator;
 	heap_h << "struct f" << g->getID()
 		<< " *sub" << callEnumerator << ";\n";
-	output_cpp << " sub" << callEnumerator
+	output_cpp << "sub" << callEnumerator
 		<< "= new f" << g->getID()
 		<< "(" << retAddr->getID() << ");\n"
 		<< "callStack = sub" << callEnumerator << ";\n";
@@ -105,10 +104,11 @@ operands *fn::generateCall(string &name, list<operands *>&paramList)
 		if(current->getSimpleVarType()!=(*v)->getType())
 		{
 			cerr << "assigning " << TYPENAMES[current->getType()]
-				<< " to " << (*v)->getType() << endl;
+				<< " to " << TYPENAMES[(*v)->getType()] << endl;
 			error(E_TYPE_MISMATCH);
 		}
-		(*v)->assignment(new expression(current));
+		cerr << "assigning to parameter in sub" << callEnumerator <<"\n";
+		(*v)->assignment(new expression(current), true);
 		++v;
 	}
 	/* pad remaining unassigned variables with empty values */
@@ -137,7 +137,18 @@ operands *fn::generateCall(string &name, list<operands *>&paramList)
 /* typeless return for gosub family */
 void fn::generateReturn()
 {
-	output_cpp << "state=subroutine::close();\nbreak;\n";
+	switch (this->getType())
+	{
+		case T_UNKNOWNFUNC:
+			output_cpp << "state=f" << this->getID()
+				<< "::close();\nbreak;\n";
+			break;
+		case T_GOSUB:
+			output_cpp << "state=subroutine::close();\nbreak;\n";
+			break;
+		default:
+			error(E_RETURN_CODE_OMITTED);
+	}
 }
 
 void fn::generateReturn(expression *expr)

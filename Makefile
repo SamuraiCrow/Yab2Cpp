@@ -48,4 +48,4 @@ build/yabFunctions.o: $(YABFUNCTIONS_SOURCE_DEPS)
 
 .PHONY: clean
 clean:
-	rm -rf build/*.o output/*.o yab2cpp tester
+	rm -rf build/*.o output/*.h output/*.cpp yab2cpp tester

@@ -121,16 +121,28 @@ string operands::boxName()
 	}
 }
 
-void operands::assignment(expression *value)
+void operands::assignment(expression *value, bool paramDef)
 {
 	operands *op=value->evaluate();
 	enum TYPES t=op->getSimpleVarType();
+	stringstream dest;
+	string d;
+	if (paramDef) 
+	{
+		dest << "sub" << callEnumerator << "->v" << this->getID();
+	}
+	else
+	{
+		dest << this->boxName();
+	}
+	d=dest.str();
+	dest.clear();
 	switch (this->getType())
 	{
 		case T_FLOATVAR:
 			if (t==T_INTVAR)
 			{
-				output_cpp << this->boxName() << "="
+				output_cpp << d << "="
 					<< "static_cast<double>("
 					<< op->boxName() << ");\n";
 			}
@@ -138,12 +150,12 @@ void operands::assignment(expression *value)
 			{
 				if (t!=T_FLOATVAR) error(E_TYPE_MISMATCH);
 			}
-			output_cpp << this->boxName() << "="
+			output_cpp << d << "="
 				<< op->boxName() << ";\n";
 			break;
 		default:
 			if (t!=this->getType()) error(E_TYPE_MISMATCH);
-			output_cpp << this->boxName() << "="
+			output_cpp << d << "="
 				<< op->boxName() << ";\n";
 			break;
 	}
@@ -530,12 +542,15 @@ variableType::variableType(enum SCOPES s, string &name, enum TYPES t, fn *fnHand
 string variableType::boxName()
 {
 	ostringstream ss;
-	if (myScope==S_LOCAL || myScope==S_PARAMETER)
+	switch (myScope)
 	{
-		ss << "sub" << this->handle->getID() << "->v" << this->getID();
-		return ss.str();
+		case S_LOCAL:
+		case S_PARAMETER:
+			ss << "sub" << this->handle->getID() << "->v" << this->getID();
+			break;
+		default:
+			ss << "v" << this->getID();
 	}
-	ss << "v" << this->getID();
 	return ss.str();
 }
 

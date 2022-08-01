@@ -58,7 +58,8 @@ enum COMPILE_ERRORS:unsigned int
 	E_SUBROUTINE_NOT_FOUND,
 	E_TOO_MANY_PARAMETERS,
 	E_UNASSIGNABLE_TYPE,
-	E_UNDIMENSIONED_ARRAY
+	E_UNDIMENSIONED_ARRAY,
+	E_RETURN_CODE_OMITTED
 };
 
 extern enum COMPILE_ERRORS errorLevel;
@@ -66,6 +67,7 @@ extern unsigned int indentLevel;
 /*TODO: Replace scopeGlobal with currentFunc==nullptr*/
 extern bool scopeGlobal;
 extern fn *currentFunc;
+extern unsigned int callEnumerator;
 
 /* flags used internally by the compiler */
 extern bool COMPILE;
@@ -181,7 +183,7 @@ public:
 	static enum TYPES getSimpleVarType(enum TYPES t);
 	void generateBox(enum SCOPES s);
 
-	void assignment(expression *value);
+	void assignment(expression *value, bool paramDef=false);
 	static operands *createOp(enum TYPES t);
 	virtual void dispose();
 };
@@ -360,12 +362,9 @@ class variableType:public operands
 	fn *handle;
 public:
 	static variableType *getOrCreateVar(string &name, enum TYPES t);
-	static variableType *cloneAttributes(variableType *v);
-
 	virtual string boxName();
 	/* always call generateBox() after new variableType() */
 	variableType(enum SCOPES s, string &name, enum TYPES t, fn *fnHandle);
-	variableType();
 	~variableType()
 	{}
 };

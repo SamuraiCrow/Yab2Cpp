@@ -1,5 +1,5 @@
 /*
-**  Practice runtime header for Yab2Cpp
+**  Runtime header for Yab2Cpp
 **
 **  by Samuel D. Crow
 */
@@ -10,6 +10,9 @@
 #include <cstdio>
 using namespace std;
 
+/*
+This enum contains all of the error states used at runtime.
+*/
 enum STATES:unsigned int
 {
     EXIT,
@@ -18,9 +21,12 @@ enum STATES:unsigned int
     START
 };
 
+/*
+This class wraps the function class and is inherited by every subroutine.
+*/
 class subroutine
 {
-    subroutine *called;
+    subroutine *callStackNode;
     unsigned int ret;
 
 public:
