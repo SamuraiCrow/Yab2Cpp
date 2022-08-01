@@ -1,0 +1,3 @@
+[submodule "modules/yab"]
+	path = modules/yab
+	url = git@github.com:lorglas/yab.git

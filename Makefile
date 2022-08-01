@@ -1,58 +1,51 @@
 CC := g++
-CFLAGS := -Wall
-CFLAGS += -std=c++11
-#CFLAGS += -fno-rtti
-#CFLAGS += -fno-exceptions
-#CFLAGS += -Os
+CFLAGS := -Wall -std=c++11
 LFLAGS := 
-
-ODIR := build
-RDIR := output
 
 YABCODESTRUCTURES_SOURCE_DEPS := yabCodeStructures.cpp yab2cpp.h yab2cpp.cpp tester.cpp runtime/runtime.h
 YAB2CPP_SOURCE_DEPS := yab2cpp.cpp yab2cpp.h tester.cpp
 YABDATASTRUCTURES_SOURCE_DEPS := yabDataStructures.cpp yab2cpp.h yab2cpp.cpp tester.cpp
 YABFUNCTIONS_SOURCE_DEPS := yabFunctions.cpp yab2cpp.h yab2cpp.cpp tester.cpp
 YABIO_SOURCE_DEPS := yab2cpp.h yab2cpp.cpp tester.cpp
+BIN_OBJECT_DEPS := build/yabCodeStructures.o build/yabFunctions.o build/yabDataStructures.o build/yabIO.o
+YAB2CPP_OBJECT_DEPS := $(BIN_OBJECT_DEPS) build/yab2cpp.o
+TESTER_OBJECT_DEPS := $(BIN_OBJECT_DEPS) build/tester.o
 
+.PHONY:all
+all: CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions -Os
 all: binaries
 
-$(ODIR):
-	@mkdir $(ODIR)
+.PHONY:debug
+debug: CXXFLAGS := $(CFLAGS) -g
+debug: binaries
 
-$(RDIR):
-	@mkdir $(RDIR)
+.PHONY:binaries
+binaries: yab2cpp tester
 
-binaries: bin_yab2cpp bin_tester
+tester: $(TESTER_OBJECT_DEPS)
+	$(CC) -o tester $(TESTER_OBJECT_DEPS) $(LFLAGS)
 
-YAB2CPP_OBJECT_DEPS := $(ODIR)/yabCodeStructures.o $(ODIR)/yabFunctions.o $(ODIR)/yabDataStructures.o $(ODIR)/yabIO.o $(ODIR)/yab2cpp.o
-TESTER_OBJECT_DEPS := $(ODIR)/yabCodeStructures.o $(ODIR)/yabFunctions.o $(ODIR)/yabDataStructures.o $(ODIR)/yabIO.o $(ODIR)/tester.o
-
-bin_tester: $(RDIR) $(ODIR) $(TESTER_OBJECT_DEPS)
-	$(CC) -o tester  $(TESTER_OBJECT_DEPS) $(LFLAGS)
-
-bin_yab2cpp: $(RDIR) $(ODIR) $(YAB2CPP_OBJECT_DEPS)
+yab2cpp: $(YAB2CPP_OBJECT_DEPS)
 	$(CC) -o yab2cpp $(YAB2CPP_OBJECT_DEPS) $(LFLAGS)
 
-$(ODIR)/yabCodeStructures.o: $(ODIR) $(YABCODESTRUCTURES_SOURCE_DEPS)
-	$(CC) -c $(CFLAGS) yabCodeStructures.cpp -o $(ODIR)/yabCodeStructures.o
+build/yabCodeStructures.o: $(YABCODESTRUCTURES_SOURCE_DEPS)
+	$(CC) -c $(CXXFLAGS) yabCodeStructures.cpp -o build/yabCodeStructures.o
 
-$(ODIR)/tester.o: $(ODIR) $(YAB2CPP_SOURCE_DEPS)
-	$(CC) -c $(CFLAGS) tester.cpp -o $(ODIR)/tester.o
+build/tester.o: $(YAB2CPP_SOURCE_DEPS)
+	$(CC) -c $(CXXFLAGS) tester.cpp -o build/tester.o
 
-$(ODIR)/yab2cpp.o: $(ODIR) $(YAB2CPP_SOURCE_DEPS)
-	$(CC) -c $(CFLAGS) yab2cpp.cpp -o $(ODIR)/yab2cpp.o
+build/yab2cpp.o: $(YAB2CPP_SOURCE_DEPS)
+	$(CC) -c $(CXXFLAGS) yab2cpp.cpp -o build/yab2cpp.o
 
-$(ODIR)/yabIO.o: $(ODIR) $(YABIO_SOURCE_DEPS)
-	$(CC) -c $(CFLAGS) yabIO.cpp -o $(ODIR)/yabIO.o
+build/yabIO.o: $(YABIO_SOURCE_DEPS)
+	$(CC) -c $(CXXFLAGS) yabIO.cpp -o build/yabIO.o
 
-$(ODIR)/yabDataStructures.o: $(ODIR) $(YABDATASTRUCTURES_SOURCE_DEPS)
-	$(CC) -c $(CFLAGS) yabDataStructures.cpp -o $(ODIR)/yabDataStructures.o
+build/yabDataStructures.o: $(YABDATASTRUCTURES_SOURCE_DEPS)
+	$(CC) -c $(CXXFLAGS) yabDataStructures.cpp -o build/yabDataStructures.o
 
-$(ODIR)/yabFunctions.o: $(ODIR) $(YABFUNCTIONS_SOURCE_DEPS)
-	$(CC) -c $(CFLAGS) yabFunctions.cpp -o $(ODIR)/yabFunctions.o
+build/yabFunctions.o: $(YABFUNCTIONS_SOURCE_DEPS)
+	$(CC) -c $(CXXFLAGS) yabFunctions.cpp -o build/yabFunctions.o
 
 .PHONY: clean
 clean:
-	rm -rf build/* output/* yab2cpp tester
-	
+	rm -rf build/*.o output/*.o yab2cpp tester
