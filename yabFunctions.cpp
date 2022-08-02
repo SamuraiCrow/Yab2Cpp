@@ -192,8 +192,7 @@ void fn::close()
 {
 	/* check if no returns and no return type */
 	enum CODES t=this->getType();
-	if (this->kind==T_UNKNOWN&&
-		(t==T_UNKNOWNFUNC||t==T_VOIDFUNC))
+	if (this->kind==T_UNKNOWN && t==T_UNKNOWNFUNC)
 	{
 		/* generate a typeless return */
 		this->generateReturn();
