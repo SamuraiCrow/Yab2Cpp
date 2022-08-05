@@ -34,6 +34,9 @@ int main(int argc, char *argv[])
 		case UNDEFINED_STATE_ERROR:
 			puts("Program encountered an undefined state\n");
 			break;
+		case OUT_OF_RANGE:
+			puts("Array index out of range\n");
+			break;
 		case EXIT:
 			return 0;
 		default:

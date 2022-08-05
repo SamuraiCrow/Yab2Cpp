@@ -28,7 +28,8 @@ const char *COMPILE_ERROR_NAMES[]={
 	"too many parameters in function call",
 	"value cannot be assigned",
 	"undimensioned array or undeclared function",
-	"return code was not specified on function"
+	"return code was not specified on function",
+	"wrong number of dimensions when accessing array"
 };
 
 /* These correspond to the types of enum TYPES. */

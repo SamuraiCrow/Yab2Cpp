@@ -29,7 +29,8 @@ const char *COMPILE_ERROR_NAMES[]={
 	"too many parameters in function call",
 	"value cannot be assigned",
 	"undimensioned array or undeclared function",
-	"return code was not specified on function"
+	"return code was not specified on function",
+	"wrong number of dimensions when accessing array"
 };
 
 /* These correspond to the types of enum TYPES. */
@@ -462,6 +463,37 @@ void testOnNCall()
 	logger("testOnNCall cleared");
 }
 
+void testArray() {
+	string name=string("rhombic");
+	list<unsigned int> dimensions;
+	dimensions.push_back(8);
+	arrayType *at=new arrayType(name, T_INTCALL_ARRAY, dimensions);
+	at->generateBox(S_GLOBAL);
+	list<expression *> indexes;
+	indexes.push_back(new expression(new constOp("5", T_INT)));
+	at->assignment(indexes, new expression(new constOp("4", T_INT)));
+	indexes.clear();
+	string name2=string("quad");
+	variableType *x=variableType::getOrCreateVar(name2, T_INTVAR);
+	forLoop *f=new forLoop(x,
+		new expression(new constOp("0", T_INT)),
+		new expression(new constOp("7", T_INT))
+	);
+	indexes.push_back(new expression(x));
+	print=new printSegment(new expression(x), S_SEMICOLON);
+	print->generate();
+	delete print;
+	print=new printSegment(new expression(new constOp(" has value ", T_STRING)), S_SEMICOLON);
+	print->generate();
+	delete print;
+	print=new printSegment(new expression(at->getElement(indexes)));
+	print->generate();
+	delete print;
+	f->close();
+	dimensions.clear();
+	delete f;
+}
+
 /* open files and compile */
 void compile()
 {
@@ -473,6 +505,7 @@ void compile()
 	testIf();
 	testForLoop();
 	testOnNCall();
+	testArray();
 	logger("generating end");
 	label::generateEnd();
 	/*check for nesting error */

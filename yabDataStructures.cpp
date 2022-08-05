@@ -7,6 +7,9 @@
 **
 */
 #include "yab2cpp.h"
+#include <fstream>
+#include <list>
+#include <sstream>
 
 /* forward declaration and static initializers */
 class fn;
@@ -576,20 +579,43 @@ variableType *variableType::getOrCreateVar(string &name, enum TYPES t)
 	return v;
 }
 
-string arrayType::boxName(list<operands *>indexes)
+list<operands *> &arrayType::evaluateIndexes(list<expression *>indexes)
 {
-	ostringstream out;
+	if (indexes.size()!=this->dimensions.size()) error(E_WRONG_NUMBER_OF_DIMENSIONS);
+	auto param= new list<operands *>();
+	operands *o;
 	auto i=indexes.begin();
-	out << 'v' << this->getID();
+	auto i2 = dimensions.begin();
 	while (i!=indexes.end())
 	{
-		out << '[' << (*i)->boxName() << ']';
+		o=(*i)->evaluate();
+		param->push_back(o);
+		output_cpp << "if (" << o->boxName() << ">=" << *i2 
+			<< "){state=OUT_OF_RANGE;break;}\n";
 		++i;
+		++i2;
 	}
-	return out.str();
+	return *param;
 }
 
-string arrayType::generateBox(enum SCOPES s)
+operands *arrayType::getElement(list<expression *>indexes)
+{
+	auto parameters = this->evaluateIndexes(indexes);
+	tempVar *tv=tempVar::getOrCreateVar(getSimpleVarType(this->getType()));
+	output_cpp << tv->boxName() << "="
+		<< 'v' << this->getID();
+	auto i=parameters.begin();
+	while (i!=parameters.end())
+	{
+		output_cpp << '[' << (*i)->boxName() << ']';
+		++i;
+	}
+	output_cpp << ";\n";
+	parameters.clear();
+	return tv;
+}
+
+void arrayType::generateBox(enum SCOPES s)
 {
 	ostringstream out;
 	switch (this->getType())
@@ -612,7 +638,7 @@ string arrayType::generateBox(enum SCOPES s)
 		out << '[' << *i << ']';
 	}
 	out << ";\n";
-	return out.str();
+	(s==S_LOCAL&&!scopeGlobal)?funcs_h:heap_h << out.str();
 }
 
 arrayType::arrayType(string &name, enum TYPES t, list<unsigned int>dim):
@@ -621,23 +647,28 @@ arrayType::arrayType(string &name, enum TYPES t, list<unsigned int>dim):
 	this->dimensions=dim;
 }
 
+string arrayType::sourceName(list<operands *>source)
+{
+	ostringstream out;
+	out << 'v' << this->getID();
+	for (auto i=source.begin();i!=source.end();++i)
+	{
+		out << '[' << (*i)->boxName() << ']';
+	}
+	return out.str();
+}
+
 void arrayType::assignment(list<expression *>indexes, expression *value)
 {
-	list<operands *>x;
+	list<operands *>x=this->evaluateIndexes(indexes);
 	operands *op=value->evaluate();
 	enum TYPES t=op->getSimpleVarType();
-	auto i=indexes.begin();
-	while(i!=indexes.end())
-	{
-		x.push_back((*i)->evaluate());
-		++i;
-	}
 	switch (this->getType())
 	{
 	case T_FLOATCALL_ARRAY:
 		if (t==T_INTVAR)
 		{
-			output_cpp << this->boxName(x)
+			output_cpp << this->sourceName(x)
 				<< "=static_cast<double>("
 				<< op->boxName() << ");\n";
 			return;
@@ -653,7 +684,7 @@ void arrayType::assignment(list<expression *>indexes, expression *value)
 	default:
 		error(E_INTERNAL);
 	}
-	output_cpp << this->boxName(x) << '=' << op->boxName() <<";\n";
+	output_cpp << this->sourceName(x) << '=' << op->boxName() <<";\n";
 	op->dispose();
 	delete value;
 }

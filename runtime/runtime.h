@@ -18,6 +18,7 @@ enum STATES:unsigned int
     EXIT,
     UNDEFINED_STATE_ERROR,
     STACK_UNDERFLOW_ERROR,
+    OUT_OF_RANGE,
     START
 };
 

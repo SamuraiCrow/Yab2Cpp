@@ -59,7 +59,8 @@ enum COMPILE_ERRORS:unsigned int
 	E_TOO_MANY_PARAMETERS,
 	E_UNASSIGNABLE_TYPE,
 	E_UNDIMENSIONED_ARRAY,
-	E_RETURN_CODE_OMITTED
+	E_RETURN_CODE_OMITTED,
+	E_WRONG_NUMBER_OF_DIMENSIONS
 };
 
 extern enum COMPILE_ERRORS errorLevel;
@@ -371,9 +372,12 @@ public:
 class arrayType:public variableType
 {
 	list<unsigned int> dimensions;
+
+	list<operands *> &evaluateIndexes(list<expression *>indexes);
+	string sourceName(list<operands *> source);
 public:
-	string generateBox(enum SCOPES s);
-	virtual string boxName(list<operands *>indexes);
+	void generateBox(enum SCOPES s);
+	operands *getElement(list<expression *>indexes);
 	virtual string boxName(){error(E_UNDIMENSIONED_ARRAY);}
 
 	void assignment(list<expression *>indexes, expression *value);
