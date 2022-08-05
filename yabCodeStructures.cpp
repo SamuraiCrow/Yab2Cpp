@@ -60,52 +60,49 @@ void label::generateEnd()
 
 void label::generateJumpTo()
 {
-	output_cpp << "state=" << this->getID() << ";\nbreak;\n";
+	output_cpp << "{state=" << this->getID() << ";break;}\n";
 }
 
 /* pass this as second parameter to generateOnNTo or generateOnNSub */
 unsigned int label::generateOnNSkip(list<label *>&dest)
 {
+	unsigned int ret=++nextID;
 	if (dest.size()<2)error(E_BAD_SYNTAX);
 	auto iter=dest.begin();
-	consts_h << "j" << this->getID() << "[]={" << *iter;
+	consts_h << "const unsigned int j" << ret << "[]={\n" << (*iter)->getID();
 	++iter;
 	while(iter!=dest.end())
 	{
-		consts_h << ", " << *iter;
+		consts_h << ",\n" << (*iter)->getID();
 		++iter;
 	}
-	consts_h << "}\njs" << this->getID()<< "=" << dest.size() << ";\n";
-	return this->getID();
+	consts_h << "\n};\nconst int js" << ret << "=" << dest.size() << ";\n";
+	return ret;
 }
 
 void label::generateOnNTo(expression *e, unsigned int skip)
 {
-	operands *o=e->evaluate();
-	if (o->getType()==T_INT||o->getType()==T_INTVAR)
-	{
-		output_cpp<< "if(" << o->boxName() << ">=0 && "
-		    << o->boxName() << "<js" << skip << ")state=j["
-		    << o->boxName() << "];\nbreak;\n";
-		o->dispose();
-		delete e;
-		return;
-	}
-	error(E_TYPE_MISMATCH);
+	// indexed by one instead of zero so we subtract one
+	expression *e2=new expression(e, O_MINUS,
+		new expression(new constOp("1", T_INT)));
+	operands *o=e2->evaluate();
+	output_cpp << "if(" << o->boxName() << ">=0 && "
+	    << o->boxName() << "<js" << skip 
+		<< "){state=j" << skip << "["
+	    << o->boxName() << "];break;}\n";
+	o->dispose();
+	delete e2;
+	return;
 }
 
 void label::generateCondJump(expression *e)
 {
 	operands *o=e->evaluate();
-	if (o->getType()==T_INT||o->getType()==T_INTVAR)
-	{
-		output_cpp<< "if(" << o->boxName() 
-            << "!=0){state=" << this->getID() << ";break;}\n";
-		o->dispose();
-		delete e;
-		return;
-	}
-	error(E_TYPE_MISMATCH);
+	if (o->getSimpleVarType()!=T_INTVAR)error(E_TYPE_MISMATCH);
+	output_cpp<< "if(" << o->boxName() 
+		<< "!=0){state=" << this->getID() << ";break;}\n";
+	o->dispose();
+	delete e;
 }
 
 void label::generate()

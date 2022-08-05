@@ -33,18 +33,18 @@ void fn::dumpFunctionIDs()
 
 void fn::generateOnNSub(expression *e, unsigned int skip)
 {
-	label *r=new label();
-	output_cpp << "callStack=new subroutine(" << r->getID() << ");\n";
+	label *retLabel=new label();
+	output_cpp << "callStack=new subroutine(" << retLabel->getID() << ");\n";
 	label::generateOnNTo(e, skip);
-	r->generate();
+	retLabel->generate();
 }
 
 void fn::generateGosub(label *sub)
 {
-	label *r=new label();
-	output_cpp << "callStack=new subroutine(" << r->getID() << ");\n";
+	label *retLabel=new label();
+	output_cpp << "callStack=new subroutine(" << retLabel->getID() << ");\n";
 	sub->generateJumpTo();
-	r->generate();
+	retLabel->generate();
 }
 
 fn *fn::getSub(string &name)
@@ -285,7 +285,7 @@ fn::fn(enum CODES t, operands *returnCode)
 	{
 		funcs_h << "struct f" << this->id <<":public subroutine\n{\nf"
 			<< this->id << "(unsigned int x):subroutine(x)\n{}\n"
-			<< "virtual ~f" << this->id <<"()\n{}\n\n";
+			<< "virtual ~f" << this->id <<"()\n{}\n";
 	}
 	/*keep track of where the return code will be sent to*/
 	this->rc=returnCode;

@@ -277,7 +277,7 @@ public:
 	void generateJumpTo();
 	/* pass generateOnNSkip as second paramater
 		to generateOnNTo or generateOnNSub */
-	unsigned int generateOnNSkip(list<label *>&dest);
+	static unsigned int generateOnNSkip(list<label *>&dest);
 	static void generateOnNTo(expression *e, unsigned int skip);
 	void generateCondJump(expression *e);
 	void generate();
@@ -420,9 +420,11 @@ public:
 	/* must be called after label::generateOnNSkip */
 	static void generateOnNSub(expression *e, unsigned int skip);
 
+	label *getStart() const {return startAddr;}
 	enum CODES getType() const {return this->type;}
 	unsigned int getID() const {return this->id;}
 	size_t getNumParams() const {return this->params.size();}
+	/* can return nullptr if not found */
 	variableType *getLocalVar(string &name);
 	void addParameter(string &name, enum TYPES t);
 

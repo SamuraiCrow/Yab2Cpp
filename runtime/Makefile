@@ -1,9 +1,9 @@
 CC := g++
 CFLAGS := -Wall
 CFLAGS += -std=c++11
-#CFLAGS += -fno-rtti
-#CFLAGS += -fno-exceptions
-#CFLAGS += -Os
+CFLAGS += -fno-rtti
+CFLAGS += -fno-exceptions
+CFLAGS += -Os
 LFLAGS := 
 
 .PHONY: all

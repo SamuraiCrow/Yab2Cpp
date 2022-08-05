@@ -410,6 +410,58 @@ void testForLoop()
 	logger("testForLoop cleared");
 }
 
+void testOnNCall()
+{
+	logger("testOnNCall entered");
+	string s1 = string("func1");
+	fn *f1=fn::declare(s1, T_UNKNOWNFUNC);
+	print=new printSegment(new expression(new constOp(string("one"), T_STRING)));
+	print->generate();
+	delete print;
+	f1->close();
+	logger("func1 declared");
+	string s2=string("func2");
+	fn *f2=fn::declare(s2, T_UNKNOWNFUNC);
+	print=new printSegment(new expression(new constOp(string("two"), T_STRING)));
+	print->generate();
+	delete print;
+	f2->close();
+	logger("func2 declared");
+	string s3=string("func3");
+	fn *f3=fn::declare(s3, T_UNKNOWNFUNC);
+	print=new printSegment(new expression(new constOp(string("three"), T_STRING)));
+	print->generate();
+	delete print;
+	f3->close();
+	logger("func3 declared");
+	string s=string("countdown");
+	variableType *q=variableType::getOrCreateVar(s, T_INTVAR);
+	logger("countdown var declared");
+	forLoop *f=new forLoop(q,
+		new expression(new constOp("3",T_INT)),
+		new expression(new constOp("0",T_INT)),
+		new expression(new constOp("-1",T_INT))
+	);
+	logger("forloop declared");
+	list<label *> l;
+	l.push_back(f1->getStart());
+	l.push_back(f2->getStart());
+	l.push_back(f3->getStart());
+	logger("list allocated");
+	unsigned int x = label::generateOnNSkip(l);
+	fn::generateOnNSub(new expression(q), x);
+	logger("on countdown gosub declared");
+	print=new printSegment(new expression(new constOp("fallthrough condition test",T_STRING)));
+	print->generate();
+	delete print;
+	logger("fallthrough condition declared");
+	f->close();
+	v->dispose();
+	l.clear();
+	delete f;
+	logger("testOnNCall cleared");
+}
+
 /* open files and compile */
 void compile()
 {
@@ -420,6 +472,7 @@ void compile()
 	testFunc();
 	testIf();
 	testForLoop();
+	testOnNCall();
 	logger("generating end");
 	label::generateEnd();
 	/*check for nesting error */
